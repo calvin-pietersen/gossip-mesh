@@ -1,0 +1,11 @@
+*.userprefs
+*.user
+*.lock.json
+/*.suo
+/*.sdf
+/.vs/
+bin/
+obj/
+*.nupkg
+/packages/
+/protoc_plugins/

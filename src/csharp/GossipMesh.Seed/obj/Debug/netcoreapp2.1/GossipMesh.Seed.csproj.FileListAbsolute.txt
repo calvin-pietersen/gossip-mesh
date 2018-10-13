@@ -1,0 +1,14 @@
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/bin/Debug/netcoreapp2.1/GossipMesh.Seed.deps.json
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/bin/Debug/netcoreapp2.1/GossipMesh.Seed.runtimeconfig.json
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/bin/Debug/netcoreapp2.1/GossipMesh.Seed.runtimeconfig.dev.json
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/bin/Debug/netcoreapp2.1/GossipMesh.Seed.dll
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/bin/Debug/netcoreapp2.1/GossipMesh.Seed.pdb
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/obj/Debug/netcoreapp2.1/GossipMesh.Seed.csprojAssemblyReference.cache
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/obj/Debug/netcoreapp2.1/GossipMesh.Seed.csproj.CoreCompileInputs.cache
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/obj/Debug/netcoreapp2.1/GossipMesh.Seed.AssemblyInfoInputs.cache
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/obj/Debug/netcoreapp2.1/GossipMesh.Seed.AssemblyInfo.cs
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/obj/Debug/netcoreapp2.1/GossipMesh.Seed.dll
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/obj/Debug/netcoreapp2.1/GossipMesh.Seed.pdb
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/bin/Debug/netcoreapp2.1/GossipMesh.Core.dll
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/bin/Debug/netcoreapp2.1/GossipMesh.Core.pdb
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Seed/obj/Debug/netcoreapp2.1/GossipMesh.Seed.csproj.CopyComplete

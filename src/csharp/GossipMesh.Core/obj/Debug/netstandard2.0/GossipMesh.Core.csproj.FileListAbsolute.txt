@@ -1,0 +1,9 @@
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Core/bin/Debug/netstandard2.0/GossipMesh.Core.deps.json
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Core/bin/Debug/netstandard2.0/GossipMesh.Core.dll
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Core/bin/Debug/netstandard2.0/GossipMesh.Core.pdb
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Core/obj/Debug/netstandard2.0/GossipMesh.Core.csprojAssemblyReference.cache
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Core/obj/Debug/netstandard2.0/GossipMesh.Core.csproj.CoreCompileInputs.cache
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Core/obj/Debug/netstandard2.0/GossipMesh.Core.AssemblyInfoInputs.cache
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Core/obj/Debug/netstandard2.0/GossipMesh.Core.AssemblyInfo.cs
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Core/obj/Debug/netstandard2.0/GossipMesh.Core.dll
+/home/calvin/Git/gossip-mesh/src/csharp/GossipMesh.Core/obj/Debug/netstandard2.0/GossipMesh.Core.pdb

@@ -3,18 +3,19 @@ package gossipmesh;
 
 enum ServiceSatus {
     bootstrapping = 0;
-    normal = 1;
-    unreachable = 2;
+    alive = 1;
+    suspected = 2;
     terminated = 3;
 }
 
 message ServiceState {
     int64 timestamp = 1;
-    ServiceSatus state = 2;
+    ServiceSatus status = 2;
 }
 
 message Service {
     string name = 1;
     double version = 2;
-    string endpoint = 3;
+    bytes ip_address = 4;
+    ServiceState state = 5;
 }
