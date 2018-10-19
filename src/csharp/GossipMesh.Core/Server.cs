@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -7,14 +8,14 @@ namespace GossipMesh.Core
 {
     public class Server
     {
-        private readonly int _listenPort;
+        private readonly IPEndPoint _localEndpoint;
         private readonly int _protocolPeriodMs;
 
         private readonly ILogger _logger;
 
         public Server(int listenPort, int protocolPeriodMs, ILogger logger)
         {
-            _listenPort = listenPort;
+            _localEndpoint = new IPEndPoint(IPAddress.Any, listenPort);
             _protocolPeriodMs = protocolPeriodMs;
             _logger = logger;
         }
@@ -31,34 +32,37 @@ namespace GossipMesh.Core
 
         public async Task GossipPump()
         {
-            while (true)
+            var udpClient = CreateUdpClient();
+
+            try
             {
-                // ping
-                _logger.LogInformation("Gossip.Mesh ping {Seed}", "seed");
-                var udpClient = new UdpClient("localhost", _listenPort);
-                try
+                while (true)
                 {
+                    // ping
+                    var endpoint = new IPEndPoint(_localEndpoint.Address, _localEndpoint.Port);
+
+                    _logger.LogInformation("Gossip.Mesh ping {endpoint}", endpoint);
+
                     var bytes = new byte[512];
                     bytes[0] = 0x01;
+                    await udpClient.SendAsync(bytes, 512, endpoint).ConfigureAwait(false);
 
-                    await udpClient.SendAsync(bytes, 512).ConfigureAwait(false);
+                    await Task.Delay(_protocolPeriodMs).ConfigureAwait(false);
                 }
-
-                catch (Exception e)
-                {
-                    Console.WriteLine(e.ToString());
-                }
-                finally
-                {
-                    udpClient.Close();
-                }
-                await Task.Delay(_protocolPeriodMs).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Gossip.Mesh threw an unhandled exception");
+            }
+            finally
+            {
+                udpClient.Close();
             }
         }
 
         public async Task StartListener()
         {
-            var udpServer = new UdpClient(_listenPort);
+            var udpServer = CreateUdpClient();
 
             try
             {
@@ -71,12 +75,23 @@ namespace GossipMesh.Core
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.ToString());
+                _logger.LogError(e, "Gossip.Mesh threw an unhandled exception");
             }
             finally
             {
                 udpServer.Close();
             }
+        }
+
+        public UdpClient CreateUdpClient()
+        {
+            var udpClient = new UdpClient();
+            udpClient.Client.SetSocketOption(
+                        SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+
+            udpClient.Client.Bind(_localEndpoint);
+
+            return udpClient;
         }
     }
 }
