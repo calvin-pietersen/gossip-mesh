@@ -1,45 +1,53 @@
 # Gossip Mesh Protocol
+Gossip Mesh is based off the [SWIM] paper. It is a simple membership protocol used for failure detection and service discovery.
+
+## Direct health check
+Every round of gossip, each member (A) will randomly pick another member (B) to ping. B will then ack A to let them know they are alive.
+```
+   ping
+   A------------------>B
+
+                     ack
+   A<------------------B
+```
+
+## Indirect health check
+In a round of gossip, if B does not respond to the ping of A within the ping timout period, A will try to indirectly ping B. It does this by sending a ping request through k other members (C & D), who will then try to forward the message through to B. B will then attempt to directly ack A and indirectly ack A via C & D with an ack request.
+
+```
+   ping
+   A---------x         B
+
+   OR
+                     ack
+   A         x---------B
+
+   ping request
+             C
+           /   \
+         /       \
+       /           \
+   A---             -->B
+       \           /
+         \       /
+           \   /
+             D
+
+             ack request
+             C
+           /   \
+         /       \
+       /           \ ack
+   A<------------------B
+       \           /
+         \       /
+           \   /
+             D
+           
+```
 
 ## Messages
 Used by the failure detector and encapsulates events for membership state dissemination.
-
-Standard health check
-```
-   ping
-   A------------>B
-
-                ack
-   A<------------B
-```
-Forwarded health check
-```
-   ping
-   A------x      B
-
-
-   ping request
-           C
-         /   \
-       /       \
-     /           \
-   A              >B
-     \           /
-       \       /
-         \   /
-           D
-
-         ack request
-           C
-         /   \
-       /       \
-     /           \
-   A<              B
-     \           /
-       \       /
-         \   /
-           D
-           
-```
 
 ### Ping
 A direct request from one gossiper to another. The pinger sends a ping to a pingee to see if the pingee is alive. This is the start of the failure detection process.
@@ -72,7 +80,7 @@ In the case of the pingee recieving a ping request from a forwarder, they will i
 4. repeated events
 
 ## Events
-Captures state changes of members.
+Captures the state changes of members.
 
 ### Alive
 
@@ -95,8 +103,12 @@ Captures state changes of members.
 2. ip
 3. gossiper port
 
-### Suspect
+### Suspected
 
-1. type: 3
+1. type: 4
 2. ip
 3. gossiper port
+
+
+
+[SWIM]: http://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf 
