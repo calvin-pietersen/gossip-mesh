@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using GossipMesh.Core;
+using Microsoft.Extensions.Logging;
 
 namespace GossipMesh.Seed
 {
@@ -8,13 +9,20 @@ namespace GossipMesh.Seed
     {
         public static async Task Main(string[] args)
         {
-            var server = new GossipMesh.Core.Server(11000);
+
+            ILoggerFactory loggerFactory = new LoggerFactory()
+                .AddConsole()
+                .AddDebug();
+
+            ILogger logger = loggerFactory.CreateLogger<Program>();
+
+            var server = new GossipMesh.Core.Server(11000, 1000, logger);
             server.StartAsync();
 
             while (true)
             {
-                Console.WriteLine("seed node doing random things");
-                await Task.Delay(100);
+                logger.LogInformation("seed node doing random things");
+                await Task.Delay(10000);
             }
         }
     }

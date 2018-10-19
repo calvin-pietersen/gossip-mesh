@@ -1,46 +1,72 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace GossipMesh.Core
 {
     public class Server
     {
-        public struct UdpState
-        {
-            public UdpClient u;
-            public IPEndPoint e;
-        }
+        private readonly int _listenPort;
+        private readonly int _protocolPeriodMs;
 
-        private int _listenPort;
+        private readonly ILogger _logger;
 
-        public Server(int listenPort)
+        public Server(int listenPort, int protocolPeriodMs, ILogger logger)
         {
             _listenPort = listenPort;
+            _protocolPeriodMs = protocolPeriodMs;
+            _logger = logger;
         }
 
-        public async Task StartAsync(IEnumerable<string> seeds)
+        public async Task StartAsync()
         {
-            var listener = new UdpClient(_listenPort);
-            var groupEP = new IPEndPoint(IPAddress.Any, _listenPort);
+            _logger.LogInformation("Starting Gossip.Mesh server");
+            // recieve
+            Task.Run(async () => StartListener().ConfigureAwait(false)).ConfigureAwait(false);
 
-            var state = new UdpState
+            // ping
+            Task.Run(async () => GossipPump().ConfigureAwait(false)).ConfigureAwait(false);
+        }
+
+        public async Task GossipPump()
+        {
+            while (true)
             {
-                u = listener,
-                e = groupEP
-            };
+                // ping
+                _logger.LogInformation("Gossip.Mesh ping {Seed}", "seed");
+                var udpClient = new UdpClient("localhost", _listenPort);
+                try
+                {
+                    var bytes = new byte[512];
+                    bytes[0] = 0x01;
+
+                    await udpClient.SendAsync(bytes, 512).ConfigureAwait(false);
+                }
+
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.ToString());
+                }
+                finally
+                {
+                    udpClient.Close();
+                }
+                await Task.Delay(_protocolPeriodMs).ConfigureAwait(false);
+            }
+        }
+
+        public async Task StartListener()
+        {
+            var udpServer = new UdpClient(_listenPort);
 
             try
             {
                 while (true)
                 {
-                    Console.WriteLine("Waiting for broadcast");
-                    var request = await listener.ReceiveAsync().ConfigureAwait(false);
-
-                    Console.WriteLine(System.Text.ASCIIEncoding.ASCII.GetString(request.Buffer));
+                    // recieve
+                    var request = await udpServer.ReceiveAsync().ConfigureAwait(false);
+                    _logger.LogInformation("Gossip.Mesh recieved {MessageType} from {Member}", request.Buffer[0], request.RemoteEndPoint);
                 }
             }
             catch (Exception e)
@@ -49,7 +75,7 @@ namespace GossipMesh.Core
             }
             finally
             {
-                listener.Close();
+                udpServer.Close();
             }
         }
     }
