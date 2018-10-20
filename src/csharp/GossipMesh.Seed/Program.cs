@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using GossipMesh.Core;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace GossipMesh.Seed
@@ -9,15 +12,21 @@ namespace GossipMesh.Seed
     {
         public static async Task Main(string[] args)
         {
+            var listenPort = int.Parse(args[0]);
 
-            ILoggerFactory loggerFactory = new LoggerFactory()
+            var seeds = args.Skip(1).Select(s =>
+            {
+                var endpoint = s.Split(":");
+                return new IPEndPoint(IPAddress.Parse(endpoint[0]), int.Parse(endpoint[1]));
+            }).ToList();
+
+            var logger = new LoggerFactory()
                 .AddConsole()
-                .AddDebug();
+                .AddDebug()
+                .CreateLogger<Program>();
 
-            ILogger logger = loggerFactory.CreateLogger<Program>();
-
-            var server = new GossipMesh.Core.Server(11000, 1000, logger);
-            server.StartAsync();
+            var server = new GossipMesh.Core.Server(listenPort, 1000, logger, seeds);
+            server.Start();
 
             while (true)
             {
