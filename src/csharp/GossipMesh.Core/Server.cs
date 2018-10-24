@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -83,9 +84,15 @@ namespace GossipMesh.Core
         {
             _logger.LogInformation("Gossip.Mesh ping {endpoint}", endpoint);
 
-            var bytes = new byte[512];
-            bytes[0] = 0x01;
-            await udpClient.SendAsync(bytes, 512, endpoint).ConfigureAwait(false);
+            using (MemoryStream stream = new MemoryStream(512))
+            {
+                using (BinaryWriter writer = new BinaryWriter(stream))
+                {
+                   writer.Write(0x01);
+                }
+                
+                await udpClient.SendAsync(stream.GetBuffer(), 512, endpoint).ConfigureAwait(false);
+            }
         }
 
         public void Dispose()
