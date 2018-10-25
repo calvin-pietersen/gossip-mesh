@@ -13,6 +13,7 @@ namespace GossipMesh.Core
         private readonly IPEndPoint _localEndpoint;
         private readonly int _protocolPeriodMs;
         private readonly List<IPEndPoint> _seedMembers;
+        private readonly List<Member> _members = new List<Member>();
         private UdpClient _udpServer;
 
         private readonly ILogger _logger;
@@ -22,6 +23,16 @@ namespace GossipMesh.Core
             _localEndpoint = new IPEndPoint(IPAddress.Any, listenPort);
             _protocolPeriodMs = protocolPeriodMs;
             _seedMembers = seedMembers ?? new List<IPEndPoint>();
+
+            _members.Add(new Member
+            {
+                IP = _localEndpoint.Address,
+                GossipPort = (ushort)_localEndpoint.Port,
+                ServicePort = 8080,
+                ServiceId = 1,
+                Generation = 1,
+                State = MemberState.Alive
+            });
 
             _logger = logger;
         }
@@ -71,7 +82,14 @@ namespace GossipMesh.Core
                 {
                     // recieve
                     var request = await _udpServer.ReceiveAsync().ConfigureAwait(false);
-                    _logger.LogInformation("Gossip.Mesh recieved {MessageType} from {Member}", request.Buffer[0], request.RemoteEndPoint);
+                    var messageType = (MessageType)request.Buffer[0];
+                    _logger.LogInformation("Gossip.Mesh recieved {MessageType} from {Member}", messageType, request.RemoteEndPoint);
+
+                    if (messageType == MessageType.Ping)
+                    {
+                        // ack
+                        await AckAsync(_udpServer, request.RemoteEndPoint).ConfigureAwait(false);
+                    }
                 }
             }
             catch (Exception ex)
@@ -84,14 +102,39 @@ namespace GossipMesh.Core
         {
             _logger.LogInformation("Gossip.Mesh ping {endpoint}", endpoint);
 
-            using (MemoryStream stream = new MemoryStream(512))
+            using (MemoryStream stream = new MemoryStream(508))
             {
                 using (BinaryWriter writer = new BinaryWriter(stream))
                 {
-                   writer.Write(0x01);
+                   writer.Write((byte)MessageType.Ping);
+                   
+                   foreach(var member in _members)
+                   {
+                       writer.Write(member.GetStatusBytes());
+                   }
                 }
-                
-                await udpClient.SendAsync(stream.GetBuffer(), 512, endpoint).ConfigureAwait(false);
+
+                await udpClient.SendAsync(stream.GetBuffer(), 508, endpoint).ConfigureAwait(false);
+            }
+        }
+
+        public async Task AckAsync(UdpClient udpClient, IPEndPoint endpoint)
+        {
+            _logger.LogInformation("Gossip.Mesh ack {endpoint}", endpoint);
+
+            using (MemoryStream stream = new MemoryStream(508))
+            {
+                using (BinaryWriter writer = new BinaryWriter(stream))
+                {
+                   writer.Write((byte)MessageType.Ack);
+                   
+                   foreach(var member in _members)
+                   {
+                       writer.Write(member.GetStatusBytes());
+                   }
+                }
+
+                await udpClient.SendAsync(stream.GetBuffer(), 508, endpoint).ConfigureAwait(false);
             }
         }
 
