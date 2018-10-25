@@ -1,44 +1,59 @@
+using System.IO;
 using System.Net;
 
 namespace GossipMesh.Core
 {
     public class Member
     {
-        public IPAddress IP { get; set; }
+        private IPAddress _ip;
+        private byte[] _ipBytes;
+        public IPAddress IP
+        {
+            get
+            {
+                return _ip;
+            }
+            set
+            {
+                _ip = value;
+                _ipBytes = value.GetAddressBytes();
+            }
+        }
+
         public ushort GossipPort { get; set; }
         public ushort ServicePort { get; set; }
         public ushort ServiceId { get; set; }
         public ushort Generation { get; set; }
         public MemberState State { get; set; }
 
-        public byte[] GetStatusBytes()
+        public IPEndPoint GossipEndpoint
         {
-            byte[] bytes;
+            get
+            {
+                return new IPEndPoint(IP, GossipPort);
+            }
+        }
+
+        public void WriteTo(Stream stream)
+        {
             if (State == MemberState.Alive)
             {
-                bytes = new byte[10];
-                bytes[0] = 0x01;
-                
+                stream.WriteByte(0x01);
+
                 var ipBytes = IP.GetAddressBytes();
-                bytes[1] = ipBytes[0];
-                bytes[2] = ipBytes[1];
-                bytes[3] = ipBytes[2];
-                bytes[4] = ipBytes[3];
+                stream.WriteByte(ipBytes[0]);
+                stream.WriteByte(ipBytes[1]);
+                stream.WriteByte(ipBytes[2]);
+                stream.WriteByte(ipBytes[3]);
 
-                bytes[5] = (byte)GossipPort;
-                bytes[6] = (byte)(GossipPort >> 8);
+                stream.WriteByte((byte)GossipPort);
+                stream.WriteByte((byte)(GossipPort >> 8));
 
-                bytes[7] = (byte)ServicePort;
-                bytes[7] = (byte)(ServicePort >> 8);
-                bytes[8] = (byte)ServiceId;
-                bytes[9] = (byte)Generation;
+                stream.WriteByte((byte)ServicePort);
+                stream.WriteByte((byte)(ServicePort >> 8));
+                stream.WriteByte((byte)ServiceId);
+                stream.WriteByte((byte)Generation);
             }
-            else
-            {
-                bytes = new byte[0];
-            }
-
-            return bytes;
         }
     }
 }
