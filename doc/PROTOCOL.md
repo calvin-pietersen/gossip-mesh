@@ -1,114 +1,162 @@
-# Gossip Mesh Protocol
-Gossip Mesh is based off the [SWIM] paper. It is a simple membership protocol used for failure detection and service discovery.
+# Gossip mesh protocol
 
-## Direct health check
-Every round of gossip, each member (A) will randomly pick another member (B) to ping. B will then ack A to let them know they are alive.
-```
-   ping
-   A------------------>B
+This gossip protocol is based off the [SWIM paper][SWIM]. It is a
+simple membership protocol used for failure detection and service
+discovery.
 
-                     ack
-   A<------------------B
-```
+## Discovery and membership
 
-## Indirect health check
-In a round of gossip, if B does not respond to the ping of A within the ping timout period, A will try to indirectly ping B. It does this by sending a ping request through k other members (C & D), who will then try to forward the message through to B. B will then attempt to directly ack A and indirectly ack A via C & D with an ack request.
+Members of the cluster communicate to each other by "gossiping"
+information to each other. Communication about the current state of
+nodes is communicated using events. There are four event types:
 
-```
-   ping
-   A---------x         B
+ * _alive_: the node is alive and can be communicated with
+ * _suspicious_: the node has stopped responding, but we're not sure
+   if it's dead yet
+ * _dead_: the node has died
+ * _left_: the node has voluntarily left the cluster
 
-   OR
-                     ack
-   A         x---------B
+These events have the following format:
 
-   ping request
-             C
-           /   \
-         /       \
-       /           \
-   A---             -->B
-       \           /
-         \       /
-           \   /
-             D
+| Field            | Size    | Notes                                                   |
+|------------------|---------|---------------------------------------------------------|
+| type             | 1 byte  | alive = 0, suspicious = 1, dead = 2, left = 3           |
+| node ip address  | 4 bytes | IP4 only                                                |
+| node gossip port | 2 bytes |                                                         |
+| node generation  | 1 byte  | used to supersede events - see below                    |
+| service          | 1 byte  | only for _alive_ events, meaning defined by application |
+| service port     | 2 bytes | only for _alive_ events                                 |
 
-             ack request
-             C
-           /   \
-         /       \
-       /           \ ack
-   A<------------------B
-       \           /
-         \       /
-           \   /
-             D
-           
-```
+Thus, _alive_ events are 11 bytes long, and all other events are 8
+bytes long.
 
-## Messages
-Used by the failure detector and encapsulates events for membership state dissemination.
+An example alive event might look like this:
 
-### Ping
-A direct request from one gossiper (A) to another (B). A sends a ping to a B to see if B is alive. This is the start of the failure detection process.
+    +---+-----+-----+----+-----+----+-----+----+---+---+----+
+    | 0 | 192 | 168 | 63 | 174 | 19 | 159 | 73 | 1 | 0 | 80 |
+    +---+-----+-----+----+-----+----+-----+----+---+---+----+
 
-1. type: 1 (1 Byte)
-2. repeated events (511 Bytes max)
+Most of these fields should be relatively self-explanatory, but the
+/node generation/ warrants explanation. Due to the mechanics of a
+gossip protocol, we have no guarantees about when, or how many times,
+an event is sent to a particular node. We may receive the same event
+several times, and there is no guarantee that events will always be
+up-to-date. We may be told that node `A` is _dead_, and then receive a
+subsequent event telling that node `A` is _alive_. How can we tell
+which is the current state?
 
-### Ack
-A direct response from B to A to acknoledge their ping.
+To resolve this difficulty, we add a _node generation_ to events. The
+_node generation_ associated with a given node can only ever be
+incremented by _that node_. Thus, only node `A` may send an event with
+a generation number different to the events it has received about `A`.
+`A` must increment its generation number to refute events from other
+nodes about itself. If `A` receives a event stating that "`A` is
+suspicious" then it should immediately begin disseminating a event of
+"`A` is alive", with a higher generation number than the event it
+received.
 
-1. type: 3 (1 Byte)
-2. repeated events (511 Bytes max)
+Events invalidate each other according to the following rules:
+ * event `X` invalidates event `Y` if the node generation of `X` is
+   greater than the node generation of `Y`,
+ * if event `X` and `Y` have an equal node generation, then event `X`
+   invalidates event `Y` if its type is "higher" according to the
+   following sequence: _alive_ < _suspicious_ < _dead_ < _left_
+ * otherwise, event `Y` invalidates event `X` (in the case of equal
+   events, either event may be chosen arbitrarily)
 
-### Ping Request
-In the case where A did not recieve an ack back from B within the ping timeout, they will send a ping request to k members in an attempt to indirectly ping B.
+Nodes should only send events that have not been invalidated.
 
-1. type: 2 (1 Byte)
-2. destination ip (4 Bytes)
-3. destination gossiper port (2 Bytes)
-4. source ip (4 Bytes)
-5. source gossiper port (2 Bytes)
-6. repeated events (499 Bytes mnax)
+Events are send by being _disseminated_ in messages, which are also
+used for failure detection. See the following sections for an
+explanation of messages.
 
-### Ack Request
-In the case of B recieving a ping request from C or D, they will indirectly respond to the original pinger with an ack request through C or D.
+## Failure detection
 
-1. type: 4 (1 Byte)
-2. destination ip (4 Bytes)
-3. destination gossiper port (2 Byes)
-4. repeated events (505 Bytes max)
+Random probing is used to provide efficient failure detection. During
+each protocol period, each node will send out UDP packets to some
+subset of their known peers. If these peers respond, then they will be
+considered _alive_. If they don't respond they will be considered
+_suspicious_. If they continue to be unresponsive for an extended
+period then they will be considered _dead_.
 
-## Events
-Captures the state changes of members.
+Messages are used to _disseminate_ the events described in the
+previous section. The first bytes of a message carry information
+related to failure detection (the details of which will be specified
+below), but the remainder of the 508 byte UDP payload is then filled
+with as many events as can fit. The particular strategy to chose
+messages is client-dependent, but it is advised that clients
+prioritise sending: (a) information about themselves, and (b) messages
+that they have sent comparatively few times.
 
-### Alive
+Each message will look something like this:
 
-1. type: 1 (1 Byte)
-2. ip (4 Bytes)
-3. gossiper port (2 Bytes)
-4. service port (2 Bytes)
-5. service id (1 Byte)
-6. generation (1 Byte)
+    +------------------------+-------+-------+-------+-----+
+    | Failure detection data | Event | Event | Event | ... |
+    +------------------------+-------+-------+-------+-----+
 
-### Left
+The size of each event is discussed above, and the size of the failure
+detection data is discussed below.
 
-1. type: 2 (1 Byte)
-2. ip (4 Bytes)
-3. gossiper port (2 Bytes)
+### Direct health check
 
-### Dead
+Every protocol period, each member `A` will randomly pick one (or
+more) peer(s) to _ping_. It sends a _ping_ message to each chosen
+peer, `B`. `B` will then respond to `A` with an _ack_ to communicate
+that it is still alive.
 
-1. type: 3 (1 Byte)
-2. ip (4 Bytes)
-3. gossiper port (2 Bytes)
+            ping
+       ------------->
+    A                  B
+       <-------------
+            ack
 
-### Suspected
+A _ping_ and an _ack_ each have a single byte of overhead. If the
+first byte of a message is `0` then it is an _ack_. If the first byte
+of a message is `1` then it is a _ping_.
 
-1. type: 4 (1 Byte)
-2. ip (4 Bytes)
-3. gossiper port (2 Bytes)
+Thus, we have the following structure:
 
+| Field | Size    | Notes                       |
+|-------|---------|-----------------------------|
+| type  | 1 byte  | ack = 0, forwarded ping = 1 |
 
+### Indirect health check
 
-[SWIM]: http://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf 
+If node `B` has not responded to a _ping_, node `A` may request other
+nodes to ping it on behalf of node `A`. This method of indirect
+pinging aims to detect when a node is still alive, but for some reason
+node `A` is unable to communicate with it (presumably due to some sort
+of networking issue).
+
+To do this, node `A` randomly picks one (or more) peer(s) to ask to
+ping `B`. It sends a "ping request" to each chosen peer, `C`. `C` will
+then forward the message on to `B` (as well as consuming any events in
+the message). When `B` responds, instead of sending a plain _ack_ it
+will send an "ack request", which `C` will forward along to `A`
+(again, consuming any events in the message).
+
+          ping-req        forwarded-ping
+       ------------->     ------------->
+    A                  C                  B
+       <-------------     <-------------
+        forwarded-ack         ack-req
+
+The structure of the "ping request" and the "forwarded ping" messages
+is identical, and the structure of the "ack request" and the
+"forwarded ack" messages is identical. They are also very similar to
+each other:
+
+| Field                  | Size    | Notes                                 |
+|------------------------|---------|---------------------------------------|
+| type                   | 1 byte  | forwarded ack = 2, forwarded ping = 3 |
+| destination ip address | 4 bytes |                                       |
+| destination port       | 2 bytes |                                       |
+| source ip address      | 4 bytes |                                       |
+| source port            | 2 bytes |                                       |
+
+A forwarded message contains the IP address and port of the source
+(ie. `A`), and the IP address of the destination (ie. `B`) to enable
+routing that does not depend on the state of the intermediate nodes
+(ie. so nodes don't have to remember where to forward messages).
+
+[SWIM]: http://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf
