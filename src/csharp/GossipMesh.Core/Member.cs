@@ -26,7 +26,7 @@ namespace GossipMesh.Core
         public ushort Generation { get; set; }
         public MemberState State { get; set; }
 
-        public IPEndPoint GossipEndpoint
+        public IPEndPoint GossipEndPoint
         {
             get
             {
@@ -36,15 +36,11 @@ namespace GossipMesh.Core
 
         public void WriteTo(Stream stream)
         {
+            stream.WriteByte((byte)State);
+
             if (State == MemberState.Alive)
             {
-                stream.WriteByte(0x01);
-
-                var ipBytes = IP.GetAddressBytes();
-                stream.WriteByte(ipBytes[0]);
-                stream.WriteByte(ipBytes[1]);
-                stream.WriteByte(ipBytes[2]);
-                stream.WriteByte(ipBytes[3]);
+                stream.Write(IP.GetAddressBytes(), 0, 4);
 
                 stream.WriteByte((byte)GossipPort);
                 stream.WriteByte((byte)(GossipPort >> 8));
@@ -56,9 +52,16 @@ namespace GossipMesh.Core
             }
         }
 
-        public static Member Parse(byte[] bytes)
+        public override string ToString() 
         {
-            return null;
+            return string.Format("ip {0} gossipPort {1} servicePort {2} serviceId {3} generation {4} ipEndPoint {5} state {6}",
+            IP,
+            GossipPort,
+            ServicePort,
+            ServiceId,
+            Generation,
+            GossipEndPoint,
+            State);
         }
     }
 }

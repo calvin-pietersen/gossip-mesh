@@ -1,10 +1,10 @@
 namespace GossipMesh.Core
 {
-    public enum MemberState
+    public enum MemberState : byte
     {
-        Alive = 1,
-        Left = 2,
-        Dead = 3,
-        Suspected = 4
+        Alive = 0x01,
+        Left = 0x02,
+        Dead = 0x03,
+        Suspected = 0x04
     }
 }

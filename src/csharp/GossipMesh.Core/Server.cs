@@ -14,7 +14,7 @@ namespace GossipMesh.Core
         private readonly int _protocolPeriodMs;
         private readonly List<IPEndPoint> _seedMembers;
         private readonly object _memberLocker = new Object();
-        private readonly List<Member> _members = new List<Member>();
+        private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
 
         private UdpClient _udpServer;
 
@@ -27,7 +27,7 @@ namespace GossipMesh.Core
 
             _self = new Member
             {
-                IP = IPAddress.Any,
+                IP = GetLocalIPAddress(),
                 GossipPort = (ushort)listenPort,
                 ServicePort = 8080,
                 ServiceId = 1,
@@ -40,7 +40,7 @@ namespace GossipMesh.Core
 
         public void Start()
         {
-            _udpServer = CreateUdpClient(_self.GossipEndpoint);
+            _udpServer = CreateUdpClient(_self.GossipEndPoint);
 
             _logger.LogInformation("Starting Gossip.Mesh server");
             // recieve
@@ -58,18 +58,24 @@ namespace GossipMesh.Core
 
                 while (true)
                 {
+                    var members = GetMembers();
+
                     // ping member
-                    if (_members.Count > 0)
+                    if (members.Length > 0)
                     {
-                        var i = rand.Next(0, _members.Count);
-                        await PingAsync(_udpServer, _members[i].GossipEndpoint);
+
+                        if (members != null)
+                        {
+                            var i = rand.Next(0, members.Length);
+                            await PingAsync(_udpServer, members[i].GossipEndPoint, members);
+                        }
                     }
 
                     // ping seed
                     if (_seedMembers.Count > 0)
                     {
                         var i = rand.Next(0, _seedMembers.Count);
-                        await PingAsync(_udpServer, _seedMembers[i]);
+                        await PingAsync(_udpServer, _seedMembers[i], members);
                     }
 
                     // TODO - sync times between protocol period better should be protocol time - last pump execution time
@@ -93,17 +99,17 @@ namespace GossipMesh.Core
                     var messageType = (MessageType)request.Buffer[0];
                     _logger.LogInformation("Gossip.Mesh recieved {MessageType} from {Member}", messageType, request.RemoteEndPoint);
 
-
                     using (var stream = new MemoryStream(request.Buffer, false))
                     {
-                    // update members
-                    UpdateMembers(stream);
+                        // update members
+                        UpdateMembers(stream);
                     }
 
                     if (messageType == MessageType.Ping)
                     {
+                        var members = GetMembers();
                         // ack
-                        await AckAsync(_udpServer, request.RemoteEndPoint).ConfigureAwait(false);
+                        await AckAsync(_udpServer, request.RemoteEndPoint, members).ConfigureAwait(false);
                     }
                 }
             }
@@ -113,27 +119,27 @@ namespace GossipMesh.Core
             }
         }
 
-        public async Task PingAsync(UdpClient udpClient, IPEndPoint endpoint)
+        public async Task PingAsync(UdpClient udpClient, IPEndPoint endpoint, Member[] members)
         {
             _logger.LogInformation("Gossip.Mesh sending ping to {endpoint}", endpoint);
 
             using (var stream = new MemoryStream(508))
             {
                 stream.WriteByte((byte)MessageType.Ping);
-                WriteMembers(stream);
+                WriteMembers(stream, members);
 
                 await udpClient.SendAsync(stream.GetBuffer(), 508, endpoint).ConfigureAwait(false);
             }
         }
 
-        public async Task AckAsync(UdpClient udpClient, IPEndPoint endpoint)
+        public async Task AckAsync(UdpClient udpClient, IPEndPoint endpoint, Member[] members)
         {
             _logger.LogInformation("Gossip.Mesh sending ack to {endpoint}", endpoint);
 
             using (var stream = new MemoryStream(508))
             {
                 stream.WriteByte((byte)MessageType.Ack);
-                WriteMembers(stream);
+                WriteMembers(stream, members);
 
                 await udpClient.SendAsync(stream.GetBuffer(), 508, endpoint).ConfigureAwait(false);
             }
@@ -141,31 +147,64 @@ namespace GossipMesh.Core
 
         private void UpdateMembers(Stream stream)
         {
-                stream.Seek(1, SeekOrigin.Begin);
+            stream.Seek(1, SeekOrigin.Begin);
 
-                while (stream.Position < stream.Length)
+            while (stream.Position < stream.Length)
+            {
+                var memberState = (MemberState)stream.ReadByte();
+                if (memberState == MemberState.Alive)
                 {
-                    var memberState = (MemberState)stream.ReadByte();
 
-                    if(memberState == MemberState.Alive)
+                    var ip = new IPAddress(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte() });
+                    var gossipPort = BitConverter.ToUInt16(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte() }, 0);
+                    var servicePort = BitConverter.ToUInt16(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte() }, 0);
+                    var serviceId = (byte)stream.ReadByte();
+                    var generation = (byte)stream.ReadByte();
+
+                    var ipEndPoint = new IPEndPoint(ip, gossipPort);
+
+                    // we don't add ourselves to the member list
+                    if (ipEndPoint.Port != _self.GossipEndPoint.Port || !ipEndPoint.Address.Equals(_self.GossipEndPoint.Address))
                     {
-                        var member = new Member
+                        lock (_memberLocker)
                         {
-                            
-                        };
+                            if (!_members.ContainsKey(ipEndPoint))
+                            {
+                                _members.Add(ipEndPoint, new Member
+                                {
+                                    IP = ip,
+                                    GossipPort = gossipPort,
+                                    ServicePort = servicePort,
+                                    ServiceId = serviceId,
+                                    Generation = generation,
+                                    State = memberState
+                                });
+                            }
+                            else
+                            {
+                                if (_members[ipEndPoint].Generation > generation)
+                                {
+                                    _members[ipEndPoint].Generation = generation;
+                                }
+                            }
+                        }
                     }
                 }
+            }
         }
 
-        private void WriteMembers(Stream stream)
+        private void WriteMembers(Stream stream, Member[] members)
         {
+            // always prioritize ourselves
+            _self.WriteTo(stream);
+
             // don't just iterate over the members, do the least gossiped members.... dah
             var i = 0;
-            lock (_memberLocker)
             {
-                while (i < _members.Count && stream.Position < 507 - 10)
+                while (i < members.Length && stream.Position < 507 - 20)
                 {
-                    _members[i].WriteTo(stream);
+                    var member = members[i];
+                    members[i].WriteTo(stream);
                     i++;
                 }
             }
@@ -179,12 +218,38 @@ namespace GossipMesh.Core
                 udpClient.Client.SetSocketOption(
                             SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 udpClient.Client.Bind(endPoint);
+                udpClient.DontFragment = true;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception");
             }
             return udpClient;
+        }
+
+        private Member[] GetMembers()
+        {
+            Member[] members = null;
+            lock (_memberLocker)
+            {
+                members = new Member[_members.Count];
+                _members.Values.CopyTo(members, 0);
+            }
+
+            return members;
+        }
+
+        public static IPAddress GetLocalIPAddress()
+        {
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var ip in host.AddressList)
+            {
+                if (ip.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    return ip;
+                }
+            }
+            throw new Exception("No network adapters with an IPv4 address in the system!");
         }
 
         public void Dispose()
