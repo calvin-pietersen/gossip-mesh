@@ -93,8 +93,12 @@ namespace GossipMesh.Core
                     var messageType = (MessageType)request.Buffer[0];
                     _logger.LogInformation("Gossip.Mesh recieved {MessageType} from {Member}", messageType, request.RemoteEndPoint);
 
+
+                    using (var stream = new MemoryStream(request.Buffer, false))
+                    {
                     // update members
-                    UpdateMembers(request.Buffer);
+                    UpdateMembers(stream);
+                    }
 
                     if (messageType == MessageType.Ping)
                     {
@@ -135,13 +139,27 @@ namespace GossipMesh.Core
             }
         }
 
-        private void UpdateMembers(byte[] bytes)
+        private void UpdateMembers(Stream stream)
         {
-            
+                stream.Seek(1, SeekOrigin.Begin);
+
+                while (stream.Position < stream.Length)
+                {
+                    var memberState = (MemberState)stream.ReadByte();
+
+                    if(memberState == MemberState.Alive)
+                    {
+                        var member = new Member
+                        {
+                            
+                        };
+                    }
+                }
         }
 
         private void WriteMembers(Stream stream)
         {
+            // don't just iterate over the members, do the least gossiped members.... dah
             var i = 0;
             lock (_memberLocker)
             {
@@ -160,14 +178,14 @@ namespace GossipMesh.Core
             {
                 udpClient.Client.SetSocketOption(
                             SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                 udpClient.Client.Bind(endPoint);
+                udpClient.Client.Bind(endPoint);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception");
             }
-             return udpClient;
-        }        
+            return udpClient;
+        }
 
         public void Dispose()
         {

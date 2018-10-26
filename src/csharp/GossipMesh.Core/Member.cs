@@ -55,5 +55,10 @@ namespace GossipMesh.Core
                 stream.WriteByte((byte)Generation);
             }
         }
+
+        public static Member Parse(byte[] bytes)
+        {
+            return null;
+        }
     }
 }
