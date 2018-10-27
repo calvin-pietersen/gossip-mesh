@@ -13,6 +13,7 @@ namespace GossipMesh.Core
         private readonly Member _self;
         private readonly int _protocolPeriodMs;
         private readonly List<IPEndPoint> _seedMembers;
+        private bool _bootstrapping = true;
         private readonly object _memberLocker = new Object();
         private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
 
@@ -40,9 +41,13 @@ namespace GossipMesh.Core
 
         public void Start()
         {
+            _logger.LogInformation("Starting Gossip.Mesh server");
+
             _udpServer = CreateUdpClient(_self.GossipEndPoint);
 
-            _logger.LogInformation("Starting Gossip.Mesh server");
+            // TODO - bootstrap here
+            Task.Run(async () => await Bootstrap().ConfigureAwait(false)).ConfigureAwait(false);
+
             // recieve
             Task.Run(async () => await StartListener().ConfigureAwait(false)).ConfigureAwait(false);
 
@@ -63,19 +68,11 @@ namespace GossipMesh.Core
                     // ping member
                     if (members.Length > 0)
                     {
-
                         if (members != null)
                         {
                             var i = rand.Next(0, members.Length);
                             await PingAsync(_udpServer, members[i].GossipEndPoint, members);
                         }
-                    }
-
-                    // ping seed
-                    if (_seedMembers.Count > 0)
-                    {
-                        var i = rand.Next(0, _seedMembers.Count);
-                        await PingAsync(_udpServer, _seedMembers[i], members);
                     }
 
                     // TODO - sync times between protocol period better should be protocol time - last pump execution time
@@ -97,6 +94,14 @@ namespace GossipMesh.Core
                     // recieve
                     var request = await _udpServer.ReceiveAsync().ConfigureAwait(false);
                     var messageType = (MessageType)request.Buffer[0];
+
+                    // finish bootrapping
+                    if(_bootstrapping) 
+                    {
+                        _logger.LogInformation("Gossip.Mesh finished bootstrapping");
+                        _bootstrapping = false;
+                    }
+
                     _logger.LogInformation("Gossip.Mesh recieved {MessageType} from {Member}", messageType, request.RemoteEndPoint);
 
                     using (var stream = new MemoryStream(request.Buffer, false))
@@ -119,7 +124,23 @@ namespace GossipMesh.Core
             }
         }
 
-        public async Task PingAsync(UdpClient udpClient, IPEndPoint endpoint, Member[] members)
+        public async Task Bootstrap()
+        {
+            _logger.LogInformation("Gossip.Mesh bootstrapping off seeds");
+            Random rand = new Random();
+
+            // ideally we want to bootstap over tcp but for now we will ping seeds and stop bootstrapping on the first ack
+            while (_bootstrapping)
+            {
+                // ping seed
+                var i = rand.Next(0, _seedMembers.Count);
+                await PingAsync(_udpServer, _seedMembers[i]);
+
+                await Task.Delay(_protocolPeriodMs).ConfigureAwait(false);
+            }
+        }
+
+        public async Task PingAsync(UdpClient udpClient, IPEndPoint endpoint, Member[] members = null)
         {
             _logger.LogInformation("Gossip.Mesh sending ping to {endpoint}", endpoint);
 
@@ -199,13 +220,16 @@ namespace GossipMesh.Core
             _self.WriteTo(stream);
 
             // don't just iterate over the members, do the least gossiped members.... dah
-            var i = 0;
+            if (members != null)
             {
-                while (i < members.Length && stream.Position < 507 - 20)
+                var i = 0;
                 {
-                    var member = members[i];
-                    members[i].WriteTo(stream);
-                    i++;
+                    while (i < members.Length && stream.Position < 507 - 20)
+                    {
+                        var member = members[i];
+                        members[i].WriteTo(stream);
+                        i++;
+                    }
                 }
             }
         }
