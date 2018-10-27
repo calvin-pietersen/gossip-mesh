@@ -25,7 +25,7 @@ namespace GossipMesh.Seed
                 .AddDebug()
                 .CreateLogger<Program>();
 
-            var server = new GossipMesh.Core.Server(listenPort, 5000, logger, seeds);
+            var server = new GossipMesh.Core.Server(listenPort, 5000, 2000, logger, seeds);
             server.Start();
 
             while (true)
