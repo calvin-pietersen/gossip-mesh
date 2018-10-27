@@ -13,7 +13,7 @@ namespace GossipMesh.Core
         private readonly Member _self;
         private readonly int _protocolPeriodMs;
         private readonly List<IPEndPoint> _seedMembers;
-        private bool _bootstrapping = true;
+        private volatile bool _bootstrapping = true;
         private readonly object _memberLocker = new Object();
         private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
 
@@ -28,12 +28,12 @@ namespace GossipMesh.Core
 
             _self = new Member
             {
+                State = MemberState.Alive,            
                 IP = GetLocalIPAddress(),
                 GossipPort = (ushort)listenPort,
-                ServicePort = 8080,
-                ServiceId = 1,
                 Generation = 1,
-                State = MemberState.Alive
+                Service = 1,
+                ServicePort = 8080
             };
 
             _logger = logger;
@@ -45,13 +45,13 @@ namespace GossipMesh.Core
 
             _udpServer = CreateUdpClient(_self.GossipEndPoint);
 
-            // TODO - bootstrap here
+            // bootstrap
             Task.Run(async () => await Bootstrap().ConfigureAwait(false)).ConfigureAwait(false);
 
-            // recieve
-            Task.Run(async () => await StartListener().ConfigureAwait(false)).ConfigureAwait(false);
+            // recieve requests
+            Task.Run(async () => await Listener().ConfigureAwait(false)).ConfigureAwait(false);
 
-            // ping
+            // gossip
             Task.Run(async () => await GossipPump().ConfigureAwait(false)).ConfigureAwait(false);
         }
 
@@ -85,7 +85,7 @@ namespace GossipMesh.Core
             }
         }
 
-        public async Task StartListener()
+        public async Task Listener()
         {
             try
             {
@@ -96,7 +96,7 @@ namespace GossipMesh.Core
                     var messageType = (MessageType)request.Buffer[0];
 
                     // finish bootrapping
-                    if(_bootstrapping) 
+                    if (_bootstrapping)
                     {
                         _logger.LogInformation("Gossip.Mesh finished bootstrapping");
                         _bootstrapping = false;
@@ -173,16 +173,16 @@ namespace GossipMesh.Core
             while (stream.Position < stream.Length)
             {
                 var memberState = (MemberState)stream.ReadByte();
+                var ip = new IPAddress(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte() });
+                var gossipPort = BitConverter.ToUInt16(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte() }, 0);
+                var generation = (byte)stream.ReadByte();
+
+                var ipEndPoint = new IPEndPoint(ip, gossipPort);
+
                 if (memberState == MemberState.Alive)
                 {
-
-                    var ip = new IPAddress(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte() });
-                    var gossipPort = BitConverter.ToUInt16(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte() }, 0);
                     var servicePort = BitConverter.ToUInt16(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte() }, 0);
-                    var serviceId = (byte)stream.ReadByte();
-                    var generation = (byte)stream.ReadByte();
-
-                    var ipEndPoint = new IPEndPoint(ip, gossipPort);
+                    var service = (byte)stream.ReadByte();
 
                     // we don't add ourselves to the member list
                     if (ipEndPoint.Port != _self.GossipEndPoint.Port || !ipEndPoint.Address.Equals(_self.GossipEndPoint.Address))
@@ -193,12 +193,12 @@ namespace GossipMesh.Core
                             {
                                 _members.Add(ipEndPoint, new Member
                                 {
+                                    State = memberState,
                                     IP = ip,
                                     GossipPort = gossipPort,
+                                    Generation = generation,                                    
                                     ServicePort = servicePort,
-                                    ServiceId = serviceId,
-                                    Generation = generation,
-                                    State = memberState
+                                    Service= service,
                                 });
                             }
                             else
@@ -209,6 +209,20 @@ namespace GossipMesh.Core
                                 }
                             }
                         }
+                    }
+                }
+                else
+                {
+                    if (ipEndPoint.Port != _self.GossipEndPoint.Port || !ipEndPoint.Address.Equals(_self.GossipEndPoint.Address))
+                    {
+                        lock (_memberLocker)
+                        {
+                            if (_members.ContainsKey(ipEndPoint) && _members[ipEndPoint].Generation > generation)
+                            {
+                                _members[ipEndPoint].State = memberState;
+                                _members[ipEndPoint].Generation = generation;
+                            }
+                        }                        
                     }
                 }
             }
