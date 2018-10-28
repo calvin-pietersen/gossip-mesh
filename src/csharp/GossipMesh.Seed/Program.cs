@@ -30,7 +30,7 @@ namespace GossipMesh.Seed
 
             while (true)
             {
-                logger.LogInformation("seed node doing random things");
+                //logger.LogInformation("seed node doing random things");
                 await Task.Delay(10000);
             }
         }
