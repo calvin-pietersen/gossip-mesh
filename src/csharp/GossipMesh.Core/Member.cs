@@ -54,12 +54,12 @@ namespace GossipMesh.Core
         public override string ToString()
         {
             return string.Format("State {0} IP {1} GossipPort {2} Generation {3} Service {4} ServicePort {5}",
+            State,
             IP,
             GossipPort,
             Generation,
-            ServicePort,
             Service,
-            State);
+            ServicePort);
         }
     }
 }

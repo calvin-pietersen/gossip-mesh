@@ -21,6 +21,7 @@ namespace GossipMesh.Core
         private readonly object _awaitingAckMembersLock = new Object();
         private volatile Dictionary<IPEndPoint, DateTime> _awaitingAckMembers = new Dictionary<IPEndPoint, DateTime>();
         private DateTime _lastProtocolPeriod = DateTime.Now;
+        private readonly Random _rand = new Random();
         private UdpClient _udpServer;
 
         private readonly ILogger _logger;
@@ -61,69 +62,34 @@ namespace GossipMesh.Core
             Task.Run(async () => await GossipPump().ConfigureAwait(false)).ConfigureAwait(false);
         }
 
-        public async Task GossipPump()
+        private async Task Bootstrap()
         {
-            try
+            if (_bootstrapping)
             {
-                Random rand = new Random();
+                _logger.LogInformation("Gossip.Mesh bootstrapping off seeds");
 
-                while (true)
+                // ideally we want to bootstap over tcp but for now we will ping seeds and stop bootstrapping on the first ack
+                while (_bootstrapping)
                 {
-                    var members = GetMembers();
+                    // ping seed
+                    var i = _rand.Next(0, _seedMembers.Count);
+                    await PingAsync(_udpServer, _seedMembers[i]);
 
-                    // ping member
-                    if (members.Length > 0)
-                    {
-                        var i = rand.Next(0, members.Length);
-                        var member = members[i];
-
-                        await PingAsync(_udpServer, member.GossipEndPoint, members);
-
-                        AddAwaitingAck(member.GossipEndPoint);
-                        await Task.Delay(_ackTimeoutMs).ConfigureAwait(false);
-
-                        // check was not acked
-                        if (CheckWasNotAcked(member.GossipEndPoint))
-                        {
-                            // TODO use random traversal
-                            var indirectEndpoints = Enumerable
-                                .Range(0, Math.Min(2, members.Length))
-                                .OrderBy(x => rand.Next())
-                                    .Select(k => members[k].GossipEndPoint)
-                                .ToArray();
-
-                            await PingRequestAsync(_udpServer, member.GossipEndPoint, indirectEndpoints, members);
-                            await Task.Delay(_ackTimeoutMs).ConfigureAwait(false);
-
-                            if (CheckWasNotAcked(member.GossipEndPoint))
-                            {
-                                lock (_memberLocker)
-                                {
-                                    _members[member.GossipEndPoint].State = MemberState.Suspected;
-                                    // add to dead check
-                                }
-                            }
-                        }
-                    }
-
-                    var syncTime = Math.Min(_protocolPeriodMs, (DateTime.Now - _lastProtocolPeriod).Milliseconds);
-                    await Task.Delay(syncTime).ConfigureAwait(false);
-                    _lastProtocolPeriod = DateTime.Now;
+                    await Task.Delay(_protocolPeriodMs).ConfigureAwait(false);
                 }
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception");
+                _logger.LogInformation("Gossip.Mesh no seeds to bootstrap off");
             }
         }
 
-        public async Task Listener()
+        private async Task Listener()
         {
-            try
+            while (true)
             {
-                while (true)
+                try
                 {
-                    // recieve
                     var request = await _udpServer.ReceiveAsync().ConfigureAwait(false);
                     using (var stream = new MemoryStream(request.Buffer, false))
                     {
@@ -141,7 +107,7 @@ namespace GossipMesh.Core
 
                         IPEndPoint destinationEndPoint;
                         IPEndPoint sourceEndPoint;
-                        
+
                         if (messageType == MessageType.Ping || messageType == MessageType.Ack)
                         {
                             sourceEndPoint = request.RemoteEndPoint;
@@ -157,79 +123,108 @@ namespace GossipMesh.Core
                         UpdateMembers(stream);
 
                         var members = GetMembers();
+                        await RequestHandler(request, messageType, sourceEndPoint, destinationEndPoint, members).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception");
+                }
+            }
+        }
 
-                        if (messageType == MessageType.Ping)
+        private async Task GossipPump()
+        {
+            while (true)
+            {
+                try
+                {
+                    var members = GetMembers();
+
+                    // ping member
+                    if (members.Length > 0)
+                    {
+                        var i = _rand.Next(0, members.Length);
+                        var member = members[i];
+
+                        await PingAsync(_udpServer, member.GossipEndPoint, members);
+
+                        AddAwaitingAck(member.GossipEndPoint);
+                        await Task.Delay(_ackTimeoutMs).ConfigureAwait(false);
+
+                        // check was not acked
+                        if (CheckWasNotAcked(member.GossipEndPoint) && members.Length > 1)
                         {
-                            // ack
-                            await AckAsync(_udpServer, sourceEndPoint, members).ConfigureAwait(false);
-                        }
+                            // TODO use random traversal
+                            var indirectEndpoints = GetIndirectEndPoints(i, members);
 
-                        else if (messageType == MessageType.Ack)
-                        {
-                            RemoveAwaitingAck(sourceEndPoint);
-                        }
+                            await PingRequestAsync(_udpServer, member.GossipEndPoint, indirectEndpoints, members);
+                            await Task.Delay(_ackTimeoutMs).ConfigureAwait(false);
 
-                        else if (messageType == MessageType.PingRequest)
-                        {
-                            // if we are the destination send an ack request
-                            if (destinationEndPoint == _self.GossipEndPoint)
+                            if (CheckWasNotAcked(member.GossipEndPoint))
                             {
-                                await AckRequestAsync(_udpServer, destinationEndPoint, request.RemoteEndPoint, members).ConfigureAwait(false);
-                            }
-
-                            // otherwise forward the request
-                            else
-                            {
-                                await PingRequestForwardAsync(_udpServer, destinationEndPoint, sourceEndPoint, request.Buffer).ConfigureAwait(false);
-                            }
-                        }
-
-                        else if (messageType == MessageType.AckRequest)
-                        {
-                            // if we are the destination clear awaiting ack
-                            if (destinationEndPoint == _self.GossipEndPoint)
-                            {
-                                RemoveAwaitingAck(sourceEndPoint);
-                            }
-                            // otherwirse forward the request
-                            else
-                            {
-                                await AckRequestForwardAsync(_udpServer, destinationEndPoint, sourceEndPoint, request.Buffer).ConfigureAwait(false);
+                                lock (_memberLocker)
+                                {
+                                    _members[member.GossipEndPoint].State = MemberState.Suspected;
+                                    // add to dead check
+                                }
                             }
                         }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception");
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception");
+                }
+
+                await WaitForProtocolPeriod().ConfigureAwait(false);
             }
         }
 
-        public async Task Bootstrap()
+        private async Task RequestHandler(UdpReceiveResult request, MessageType messageType, IPEndPoint sourceEndPoint, IPEndPoint destinationEndPoint, Member[] members)
         {
-            if (_bootstrapping)
+            if (messageType == MessageType.Ping)
             {
-                _logger.LogInformation("Gossip.Mesh bootstrapping off seeds");
-                Random rand = new Random();
+                // ack
+                await AckAsync(_udpServer, sourceEndPoint, members).ConfigureAwait(false);
+            }
 
-                // ideally we want to bootstap over tcp but for now we will ping seeds and stop bootstrapping on the first ack
-                while (_bootstrapping)
+            else if (messageType == MessageType.Ack)
+            {
+                RemoveAwaitingAck(sourceEndPoint);
+            }
+
+            else if (messageType == MessageType.PingRequest)
+            {
+                // if we are the destination send an ack request
+                if (destinationEndPoint == _self.GossipEndPoint)
                 {
-                    // ping seed
-                    var i = rand.Next(0, _seedMembers.Count);
-                    await PingAsync(_udpServer, _seedMembers[i]);
+                    await AckRequestAsync(_udpServer, destinationEndPoint, request.RemoteEndPoint, members).ConfigureAwait(false);
+                }
 
-                    await Task.Delay(_protocolPeriodMs).ConfigureAwait(false);
+                // otherwise forward the request
+                else
+                {
+                    await PingRequestForwardAsync(_udpServer, destinationEndPoint, sourceEndPoint, request.Buffer).ConfigureAwait(false);
                 }
             }
-            else
+
+            else if (messageType == MessageType.AckRequest)
             {
-                _logger.LogInformation("Gossip.Mesh no seeds to bootstrap off");
+                // if we are the destination clear awaiting ack
+                if (destinationEndPoint == _self.GossipEndPoint)
+                {
+                    RemoveAwaitingAck(sourceEndPoint);
+                }
+                // otherwirse forward the request
+                else
+                {
+                    await AckRequestForwardAsync(_udpServer, destinationEndPoint, sourceEndPoint, request.Buffer).ConfigureAwait(false);
+                }
             }
         }
 
-        public async Task PingAsync(UdpClient udpClient, IPEndPoint endpoint, Member[] members = null)
+        private async Task PingAsync(UdpClient udpClient, IPEndPoint endpoint, Member[] members = null)
         {
             _logger.LogInformation("Gossip.Mesh sending ping to {endpoint}", endpoint);
 
@@ -242,7 +237,7 @@ namespace GossipMesh.Core
             }
         }
 
-        public async Task PingRequestAsync(UdpClient udpClient, IPEndPoint destinationEndpoint, IPEndPoint[] indirectEndpoints, Member[] members = null)
+        private async Task PingRequestAsync(UdpClient udpClient, IPEndPoint destinationEndpoint, IPEndPoint[] indirectEndpoints, Member[] members = null)
         {
             foreach (var indirectEndpoint in indirectEndpoints)
             {
@@ -267,14 +262,14 @@ namespace GossipMesh.Core
             }
         }
 
-        public async Task PingRequestForwardAsync(UdpClient udpClient, IPEndPoint destinationEndPoint, IPEndPoint sourceEndPoint, byte[] request)
+        private async Task PingRequestForwardAsync(UdpClient udpClient, IPEndPoint destinationEndPoint, IPEndPoint sourceEndPoint, byte[] request)
         {
             _logger.LogInformation("Gossip.Mesh forwarding ping request to {destinationEndPoint} from {sourceEndPoint}", destinationEndPoint, sourceEndPoint);
 
             await udpClient.SendAsync(request, 508, destinationEndPoint).ConfigureAwait(false);
         }
 
-        public async Task AckAsync(UdpClient udpClient, IPEndPoint endpoint, Member[] members)
+        private async Task AckAsync(UdpClient udpClient, IPEndPoint endpoint, Member[] members)
         {
             _logger.LogInformation("Gossip.Mesh sending ack to {endpoint}", endpoint);
 
@@ -287,7 +282,7 @@ namespace GossipMesh.Core
             }
         }
 
-        public async Task AckRequestAsync(UdpClient udpClient, IPEndPoint destinationEndpoint, IPEndPoint indirectEndPoint, Member[] members)
+        private async Task AckRequestAsync(UdpClient udpClient, IPEndPoint destinationEndpoint, IPEndPoint indirectEndPoint, Member[] members)
         {
             _logger.LogInformation("Gossip.Mesh sending ack request to {destinationEndpoint} via {indirectEndPoint}", destinationEndpoint, indirectEndPoint);
 
@@ -309,7 +304,7 @@ namespace GossipMesh.Core
             }
         }
 
-        public async Task AckRequestForwardAsync(UdpClient udpClient, IPEndPoint destinationEndPoint, IPEndPoint sourceEndPoint, byte[] request)
+        private async Task AckRequestForwardAsync(UdpClient udpClient, IPEndPoint destinationEndPoint, IPEndPoint sourceEndPoint, byte[] request)
         {
             _logger.LogInformation("Gossip.Mesh forwarding ack request to {destinationEndPoint} from {sourceEndPoint}", destinationEndPoint, sourceEndPoint);
 
@@ -339,7 +334,7 @@ namespace GossipMesh.Core
                         {
                             if (!_members.ContainsKey(ipEndPoint))
                             {
-                                _members.Add(ipEndPoint, new Member
+                                var member = new Member
                                 {
                                     State = memberState,
                                     IP = ip,
@@ -347,7 +342,10 @@ namespace GossipMesh.Core
                                     Generation = generation,
                                     ServicePort = servicePort,
                                     Service = service,
-                                });
+                                };
+
+                                _members.Add(ipEndPoint, member);
+                                _logger.LogInformation("Gossip.Mesh new member has joined {member}", member);
                             }
                             else
                             {
@@ -468,6 +466,26 @@ namespace GossipMesh.Core
                     _awaitingAckMembers.Remove(endPoint);
                 }
             }
+        }
+
+        private IPEndPoint[] GetIndirectEndPoints(int memberIndex, Member[] members)
+        {
+            return Enumerable
+            .Range(0, Math.Min(2, members.Length))
+            .OrderBy(x =>
+            {
+                var r = _rand.Next(0, members.Length - 1); // shift out the last member
+                return r == memberIndex ? members.Length : r; // if our members index appears use the last member
+            })
+                .Select(k => members[k].GossipEndPoint)
+            .ToArray();
+        }
+
+        private async Task WaitForProtocolPeriod()
+        {
+            var syncTime = Math.Min(_protocolPeriodMs, (DateTime.Now - _lastProtocolPeriod).Milliseconds);
+            await Task.Delay(syncTime).ConfigureAwait(false);
+            _lastProtocolPeriod = DateTime.Now;
         }
 
         public void Dispose()
