@@ -102,7 +102,7 @@ namespace GossipMesh.Core
                             _bootstrapping = false;
                         }
 
-                        _logger.LogInformation("Gossip.Mesh recieved {MessageType} from {RemoteEndPoint}", messageType, request.RemoteEndPoint;
+                        _logger.LogInformation("Gossip.Mesh recieved {MessageType} from {RemoteEndPoint}", messageType, request.RemoteEndPoint);
 
                         IPEndPoint destinationEndPoint;
                         IPEndPoint sourceEndPoint;
