@@ -242,13 +242,8 @@ namespace GossipMesh.Core
                 {
                     stream.WriteByte((byte)MessageType.PingRequest);
 
-                    stream.Write(destinationEndpoint.Address.GetAddressBytes(), 0, 4);
-                    stream.WriteByte((byte)destinationEndpoint.Port);
-                    stream.WriteByte((byte)(destinationEndpoint.Port >> 8));
-
-                    stream.Write(_self.IP.GetAddressBytes(), 0, 4);
-                    stream.WriteByte((byte)_self.GossipPort);
-                    stream.WriteByte((byte)(_self.GossipPort >> 8));
+                    stream.WriteIPEndPoint(destinationEndpoint);
+                    stream.WriteIPEndPoint(_self.GossipEndPoint);
 
                     WriteMembers(stream, members);
 
@@ -285,13 +280,8 @@ namespace GossipMesh.Core
             {
                 stream.WriteByte((byte)MessageType.AckRequest);
 
-                stream.Write(destinationEndpoint.Address.GetAddressBytes(), 0, 4);
-                stream.WriteByte((byte)destinationEndpoint.Port);
-                stream.WriteByte((byte)(destinationEndpoint.Port >> 8));
-
-                stream.Write(_self.IP.GetAddressBytes(), 0, 4);
-                stream.WriteByte((byte)_self.GossipPort);
-                stream.WriteByte((byte)(_self.GossipPort >> 8));
+                stream.WriteIPEndPoint(destinationEndpoint);
+                stream.WriteIPEndPoint(_self.GossipEndPoint);
 
                 WriteMembers(stream, members);
 
@@ -515,7 +505,7 @@ namespace GossipMesh.Core
 
         private async Task WaitForProtocolPeriod()
         {
-            var syncTime = Math.Min(_protocolPeriodMs, (DateTime.Now - _lastProtocolPeriod).Milliseconds);
+            var syncTime = _protocolPeriodMs - (int)(DateTime.Now - _lastProtocolPeriod).TotalMilliseconds;
             await Task.Delay(syncTime).ConfigureAwait(false);
             _lastProtocolPeriod = DateTime.Now;
         }

@@ -5,22 +5,8 @@ namespace GossipMesh.Core
 {
     public class Member
     {
-        private IPAddress _ip;
-        private byte[] _ipBytes;
-
         public MemberState State { get; set; }
-        public IPAddress IP
-        {
-            get
-            {
-                return _ip;
-            }
-            set
-            {
-                _ip = value;
-                _ipBytes = value.GetAddressBytes();
-            }
-        }
+        public IPAddress IP { get; set; }
         public ushort GossipPort { get; set; }
         public ushort Generation { get; set; }
         public ushort Service { get; set; }
@@ -37,16 +23,12 @@ namespace GossipMesh.Core
         public void WriteTo(Stream stream)
         {
             stream.WriteByte((byte)State);
-
-            stream.Write(_ipBytes, 0, 4);
-            stream.WriteByte((byte)GossipPort);
-            stream.WriteByte((byte)(GossipPort >> 8));
+            stream.WriteIPEndPoint(GossipEndPoint);
             stream.WriteByte((byte)Generation);
 
             if (State == MemberState.Alive)
             {
-                stream.WriteByte((byte)ServicePort);
-                stream.WriteByte((byte)(ServicePort >> 8));
+                stream.WritePort(ServicePort);
                 stream.WriteByte((byte)Service);
             }
         }

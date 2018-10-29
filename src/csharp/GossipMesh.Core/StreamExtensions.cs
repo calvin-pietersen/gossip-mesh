@@ -15,5 +15,28 @@ namespace GossipMesh.Core
         {
             return BitConverter.ToUInt16(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte() }, 0);
         }
+
+        public static void WriteIPEndPoint(this Stream stream, IPEndPoint ipEndPoint)
+        {
+            stream.WriteIPAddress(ipEndPoint.Address);
+            stream.WritePort(ipEndPoint.Port);
+        }
+
+        public static void WriteIPAddress(this Stream stream, IPAddress ipAddress)
+        {
+            stream.Write(ipAddress.GetAddressBytes(), 0, 4);
+        }
+
+        public static void WritePort(this Stream stream, ushort port)
+        {
+            stream.WriteByte((byte)port);
+            stream.WriteByte((byte)(port >> 8));
+        }
+
+        public static void WritePort(this Stream stream, int port)
+        {
+            stream.WriteByte((byte)port);
+            stream.WriteByte((byte)(port >> 8));
+        }
     }
 }
