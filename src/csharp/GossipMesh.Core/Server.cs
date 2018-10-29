@@ -93,7 +93,6 @@ namespace GossipMesh.Core
                     var request = await _udpServer.ReceiveAsync().ConfigureAwait(false);
                     using (var stream = new MemoryStream(request.Buffer, false))
                     {
-
                         var messageType = (MessageType)stream.ReadByte();
 
                         // finish bootrapping
@@ -103,7 +102,7 @@ namespace GossipMesh.Core
                             _bootstrapping = false;
                         }
 
-                        _logger.LogInformation("Gossip.Mesh recieved {MessageType} from {RemoteEndPoint}", messageType, request.RemoteEndPoint);
+                        _logger.LogInformation("Gossip.Mesh recieved {MessageType} from {RemoteEndPoint}", messageType, request.RemoteEndPoint;
 
                         IPEndPoint destinationEndPoint;
                         IPEndPoint sourceEndPoint;
@@ -162,12 +161,12 @@ namespace GossipMesh.Core
 
                             if (CheckWasNotAcked(member.GossipEndPoint))
                             {
-                                SuspectMember(member.GossipEndPoint);
+                                HandleSuspiciousMember(member.GossipEndPoint);
                             }
                         }
                     }
 
-                    CheckForDeadMembers();
+                    HandleDeadMembers();
                 }
                 catch (Exception ex)
                 {
@@ -229,7 +228,7 @@ namespace GossipMesh.Core
                 stream.WriteByte((byte)MessageType.Ping);
                 WriteMembers(stream, members);
 
-                await udpClient.SendAsync(stream.GetBuffer(), 508, endpoint).ConfigureAwait(false);
+                await udpClient.SendAsync(stream.GetBuffer(), (int)stream.Position, endpoint).ConfigureAwait(false);
             }
         }
 
@@ -253,7 +252,7 @@ namespace GossipMesh.Core
 
                     WriteMembers(stream, members);
 
-                    await udpClient.SendAsync(stream.GetBuffer(), 508, indirectEndpoint).ConfigureAwait(false);
+                    await udpClient.SendAsync(stream.GetBuffer(), (int)stream.Position, indirectEndpoint).ConfigureAwait(false);
                 }
             }
         }
@@ -262,7 +261,7 @@ namespace GossipMesh.Core
         {
             _logger.LogInformation("Gossip.Mesh forwarding PingRequest to {destinationEndPoint} from {sourceEndPoint}", destinationEndPoint, sourceEndPoint);
 
-            await udpClient.SendAsync(request, 508, destinationEndPoint).ConfigureAwait(false);
+            await udpClient.SendAsync(request, request.Length, destinationEndPoint).ConfigureAwait(false);
         }
 
         private async Task AckAsync(UdpClient udpClient, IPEndPoint endpoint, Member[] members)
@@ -274,7 +273,7 @@ namespace GossipMesh.Core
                 stream.WriteByte((byte)MessageType.Ack);
                 WriteMembers(stream, members);
 
-                await udpClient.SendAsync(stream.GetBuffer(), 508, endpoint).ConfigureAwait(false);
+                await udpClient.SendAsync(stream.GetBuffer(), (int)stream.Position, endpoint).ConfigureAwait(false);
             }
         }
 
@@ -296,7 +295,7 @@ namespace GossipMesh.Core
 
                 WriteMembers(stream, members);
 
-                await udpClient.SendAsync(stream.GetBuffer(), 508, indirectEndPoint).ConfigureAwait(false);
+                await udpClient.SendAsync(stream.GetBuffer(), (int)stream.Position, indirectEndPoint).ConfigureAwait(false);
             }
         }
 
@@ -304,7 +303,7 @@ namespace GossipMesh.Core
         {
             _logger.LogInformation("Gossip.Mesh forwarding AckRequest to {destinationEndPoint} from {sourceEndPoint}", destinationEndPoint, sourceEndPoint);
 
-            await udpClient.SendAsync(request, 508, destinationEndPoint).ConfigureAwait(false);
+            await udpClient.SendAsync(request, request.Length, destinationEndPoint).ConfigureAwait(false);
         }
 
         private void UpdateMembers(Stream stream)
@@ -326,21 +325,15 @@ namespace GossipMesh.Core
                     lock (_memberLocker)
                     {
                         Member member;
-                        if (_members.TryGetValue(ipEndPoint, out member))
+                        if (_members.TryGetValue(ipEndPoint, out member) &&
+                            (member.Generation < generation || member.State == MemberState.Alive && memberState != MemberState.Alive))
                         {
-                            if (member.Generation < generation)
-                            {
-                                member.State = memberState;
-                                member.Generation = generation;
-                            }
-
-                            else if (member.State == MemberState.Alive && memberState != MemberState.Alive)
-                            {
-                                member.State = memberState;
-                            }
+                            member.State = memberState;
+                            member.Generation = generation;
+                            _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
                         }
 
-                        else if (memberState == MemberState.Alive)
+                        else if (member == null && memberState == MemberState.Alive)
                         {
                             member = new Member
                             {
@@ -412,19 +405,33 @@ namespace GossipMesh.Core
             return members;
         }
 
-        private void SuspectMember(IPEndPoint endPoint)
+        private Member[] GetAliveMembers()
+        {
+            Member[] members = null;
+            lock (_memberLocker)
+            {
+                members = _members.Values
+                    .Where(m => m.State != MemberState.Dead ||
+                                m.State != MemberState.Alive)
+                    .ToArray();
+            }
+
+            return members;
+        }
+
+        private void HandleSuspiciousMember(IPEndPoint endPoint)
         {
             lock (_memberLocker)
             {
                 if (_members.TryGetValue(endPoint, out var member) && member.State == MemberState.Alive)
                 {
-                    member.State = MemberState.Suspected;
-                    _logger.LogInformation("Gossip.Mesh suspected member {member}", member);
+                    member.State = MemberState.Suspicious;
+                    _logger.LogInformation("Gossip.Mesh suspicious member {member}", member);
                 }
             }
         }
 
-        private void CheckForDeadMembers()
+        private void HandleDeadMembers()
         {
             lock (_awaitingAckMembersLock)
             {
@@ -435,13 +442,14 @@ namespace GossipMesh.Core
                     {
                         lock (_memberLocker)
                         {
-                            if (_members.TryGetValue(awaitingAck.Key, out var member) && member.State == MemberState.Alive || member.State == MemberState.Suspected)
+                            if (_members.TryGetValue(awaitingAck.Key, out var member) && member.State == MemberState.Alive || member.State == MemberState.Suspicious)
                             {
                                 member.State = MemberState.Dead;
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
                             }
                         }
                     }
+                    // prune dead members
                 }
             }
         }
