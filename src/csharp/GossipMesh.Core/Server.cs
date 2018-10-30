@@ -78,6 +78,7 @@ namespace GossipMesh.Core
                     await Task.Delay(_protocolPeriodMs).ConfigureAwait(false);
                 }
             }
+
             else
             {
                 _logger.LogInformation("Gossip.Mesh no seeds to bootstrap off");
@@ -112,6 +113,7 @@ namespace GossipMesh.Core
                             sourceEndPoint = request.RemoteEndPoint;
                             destinationEndPoint = _self.GossipEndPoint;
                         }
+
                         else
                         {
                             destinationEndPoint = new IPEndPoint(stream.ReadIPAddress(), stream.ReadPort());
@@ -211,6 +213,7 @@ namespace GossipMesh.Core
                 {
                     RemoveAwaitingAck(sourceEndPoint);
                 }
+
                 // otherwirse forward the request
                 else
                 {
@@ -340,6 +343,7 @@ namespace GossipMesh.Core
                         }
                     }
                 }
+
                 else
                 {
                     // handle any state claims about ourselves
