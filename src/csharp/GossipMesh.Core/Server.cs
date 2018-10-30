@@ -48,7 +48,7 @@ namespace GossipMesh.Core
 
         public void Start()
         {
-            _logger.LogInformation("Starting Gossip.Mesh server");
+            _logger.LogInformation("Starting Gossip.Mesh server on {GossipEndPoint}", _self.GossipEndPoint);
 
             _udpServer = CreateUdpClient(_self.GossipEndPoint);
 
