@@ -116,8 +116,8 @@ namespace GossipMesh.Core
 
                         else
                         {
-                            destinationEndPoint = new IPEndPoint(stream.ReadIPAddress(), stream.ReadPort());
-                            sourceEndPoint = new IPEndPoint(stream.ReadIPAddress(), stream.ReadPort());
+                            destinationEndPoint = stream.ReadIPEndPoint();
+                            sourceEndPoint = stream.ReadIPEndPoint();
                         }
 
                         // update members
@@ -156,7 +156,7 @@ namespace GossipMesh.Core
                         // check was not acked
                         if (CheckWasNotAcked(member.GossipEndPoint))
                         {
-                            var indirectEndpoints = GetIndirectEndPoints(i, members);
+                            var indirectEndpoints = GetIndirectEndPoints(member.GossipEndPoint, members);
                             await PingRequestAsync(_udpServer, member.GossipEndPoint, indirectEndpoints, members);
 
                             await Task.Delay(_ackTimeoutMs).ConfigureAwait(false);
@@ -194,9 +194,9 @@ namespace GossipMesh.Core
             else if (messageType == MessageType.PingRequest)
             {
                 // if we are the destination send an ack request
-                if (destinationEndPoint == _self.GossipEndPoint)
+                if (EndPointsMatch(destinationEndPoint, _self.GossipEndPoint))
                 {
-                    await AckRequestAsync(_udpServer, destinationEndPoint, request.RemoteEndPoint, members).ConfigureAwait(false);
+                    await AckRequestAsync(_udpServer, sourceEndPoint, request.RemoteEndPoint, members).ConfigureAwait(false);
                 }
 
                 // otherwise forward the request
@@ -209,7 +209,7 @@ namespace GossipMesh.Core
             else if (messageType == MessageType.AckRequest)
             {
                 // if we are the destination clear awaiting ack
-                if (destinationEndPoint == _self.GossipEndPoint)
+                if (EndPointsMatch(destinationEndPoint, _self.GossipEndPoint))
                 {
                     RemoveAwaitingAck(sourceEndPoint);
                 }
@@ -235,7 +235,7 @@ namespace GossipMesh.Core
             }
         }
 
-        private async Task PingRequestAsync(UdpClient udpClient, IPEndPoint destinationEndpoint, IPEndPoint[] indirectEndpoints, Member[] members = null)
+        private async Task PingRequestAsync(UdpClient udpClient, IPEndPoint destinationEndpoint, IEnumerable<IPEndPoint> indirectEndpoints, Member[] members = null)
         {
             foreach (var indirectEndpoint in indirectEndpoints)
             {
@@ -313,7 +313,7 @@ namespace GossipMesh.Core
                 var ipEndPoint = new IPEndPoint(ip, gossipPort);
 
                 // we don't add ourselves to the member list
-                if (ipEndPoint.Port != _self.GossipEndPoint.Port || !ipEndPoint.Address.Equals(_self.GossipEndPoint.Address))
+                if (!EndPointsMatch(ipEndPoint, _self.GossipEndPoint))
                 {
                     lock (_memberLocker)
                     {
@@ -394,20 +394,6 @@ namespace GossipMesh.Core
             {
                 members = new Member[_members.Count];
                 _members.Values.CopyTo(members, 0);
-            }
-
-            return members;
-        }
-
-        private Member[] GetAliveMembers()
-        {
-            Member[] members = null;
-            lock (_memberLocker)
-            {
-                members = _members.Values
-                    .Where(m => m.State != MemberState.Dead ||
-                                m.State != MemberState.Alive)
-                    .ToArray();
             }
 
             return members;
@@ -494,17 +480,22 @@ namespace GossipMesh.Core
             }
         }
 
-        private IPEndPoint[] GetIndirectEndPoints(int memberIndex, Member[] members)
+        private bool EndPointsMatch(IPEndPoint ipEndPointA, IPEndPoint ipEndPointB)
         {
-            return Enumerable
-            .Range(0, Math.Min(2, members.Length - 1))
-            .OrderBy(x =>
+            return ipEndPointA.Port == ipEndPointB.Port && ipEndPointA.Address.Equals(ipEndPointB.Address);
+        }
+
+        private IEnumerable<IPEndPoint> GetIndirectEndPoints(IPEndPoint directEndPoint, Member[] members)
+        {
+            if (members.Length <= 1)
             {
-                var r = _rand.Next(0, members.Length - 1); // shift out the last member
-                return r == memberIndex ? members.Length : r; // if our members index appears use the last member
-            })
-                .Select(k => members[k].GossipEndPoint)
-            .ToArray();
+                return Enumerable.Empty<IPEndPoint>();
+            }
+
+            return new RandomVisit<Member>(members)
+                .Where(m => !EndPointsMatch(directEndPoint, m.GossipEndPoint))
+                .Select(m => m.GossipEndPoint)
+                .Take(Math.Min(2, members.Length));
         }
 
         private async Task WaitForProtocolPeriod()

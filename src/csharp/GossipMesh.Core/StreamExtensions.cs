@@ -16,6 +16,11 @@ namespace GossipMesh.Core
             return BitConverter.ToUInt16(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte() }, 0);
         }
 
+        public static IPEndPoint ReadIPEndPoint(this Stream stream)
+        {
+            return new IPEndPoint(stream.ReadIPAddress(), stream.ReadPort());
+        }
+
         public static void WriteIPEndPoint(this Stream stream, IPEndPoint ipEndPoint)
         {
             stream.WriteIPAddress(ipEndPoint.Address);
