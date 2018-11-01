@@ -319,7 +319,7 @@ namespace GossipMesh.Core
                     {
                         Member member;
                         if (_members.TryGetValue(ipEndPoint, out member) &&
-                            (member.Generation < generation || member.State == MemberState.Alive && memberState != MemberState.Alive))
+                            (member.Generation < generation || MemberStateSuperseded(member.State, memberState)))
                         {
                             member.State = memberState;
                             member.Generation = generation;
@@ -344,9 +344,15 @@ namespace GossipMesh.Core
                     }
                 }
 
-                else
+                // handle any state claims about ourselves
+                else if (IsLaterGeneration(generation, _self.Generation))
                 {
-                    // handle any state claims about ourselves
+                    _self.Generation = generation++;
+                }
+
+                else if (memberState != MemberState.Alive && generation == _self.Generation)
+                {
+                    _self.Generation = _self.Generation++;
                 }
             }
         }
@@ -503,6 +509,20 @@ namespace GossipMesh.Core
             var syncTime = _protocolPeriodMs - (int)(DateTime.Now - _lastProtocolPeriod).TotalMilliseconds;
             await Task.Delay(syncTime).ConfigureAwait(false);
             _lastProtocolPeriod = DateTime.Now;
+        }
+
+        private bool IsLaterGeneration(byte generationA, byte generationB)
+        {
+            return ((0 < (generationA - generationB)) && ((generationA - generationB) < 191))
+                 || ((generationA - generationB) <= -191);
+        }
+
+        private bool MemberStateSuperseded(MemberState memberStateA, MemberState memberStateB)
+        {
+            // alive < suspicious < dead < left
+            return (memberStateA == MemberState.Alive && memberStateB != MemberState.Alive) ||
+                (memberStateA == MemberState.Suspicious && (memberStateB == MemberState.Dead || memberStateB == MemberState.Left)) ||
+                memberStateA == MemberState.Dead && memberStateB == MemberState.Left;
         }
 
         public void Dispose()

@@ -20,15 +20,15 @@ namespace GossipMesh.Seed
                 return new IPEndPoint(IPAddress.Parse(endpoint[0]), int.Parse(endpoint[1]));
             }).ToList();
 
-            // var logger = new LoggerFactory()
-            //     .AddConsole()
-            //     .AddDebug()
-            //     .CreateLogger<Program>();
-      
-            var loggerFactory = new LoggerFactory();
-            loggerFactory.AddProvider(new ConsoleLoggerProvider());
-            var logger = loggerFactory
+            var logger = new LoggerFactory()
+                .AddConsole()
+                .AddDebug()
                 .CreateLogger<Program>();
+      
+            // var loggerFactory = new LoggerFactory();
+            // loggerFactory.AddProvider(new ConsoleLoggerProvider());
+            // var logger = loggerFactory
+            //     .CreateLogger<Program>();
 
             var server = new GossipMesh.Core.Server(listenPort, 5000, 2000, logger, seeds);
             server.Start();
@@ -36,7 +36,7 @@ namespace GossipMesh.Seed
             while (true)
             {
                 //logger.LogInformation("seed node doing random things");
-                await Task.Delay(10000);
+                await Task.Delay(10000).ConfigureAwait(false);
             }
         }
     }

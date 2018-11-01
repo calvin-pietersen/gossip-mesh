@@ -8,7 +8,7 @@ namespace GossipMesh.Core
         public MemberState State { get; set; }
         public IPAddress IP { get; set; }
         public ushort GossipPort { get; set; }
-        public ushort Generation { get; set; }
+        public byte Generation { get; set; }
         public ushort Service { get; set; }
         public ushort ServicePort { get; set; }
 
@@ -24,7 +24,7 @@ namespace GossipMesh.Core
         {
             stream.WriteByte((byte)State);
             stream.WriteIPEndPoint(GossipEndPoint);
-            stream.WriteByte((byte)Generation);
+            stream.WriteByte(Generation);
 
             if (State == MemberState.Alive)
             {
