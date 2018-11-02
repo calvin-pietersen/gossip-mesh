@@ -30,7 +30,7 @@ namespace GossipMesh.Seed
             // var logger = loggerFactory
             //     .CreateLogger<Program>();
 
-            var server = new GossipMesh.Core.Server(listenPort, 5000, 2000, logger, seeds);
+            var server = new GossipMesh.Core.Server(listenPort, 500, 200, logger, seeds);
             server.Start();
 
             while (true)
