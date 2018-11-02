@@ -307,8 +307,8 @@ namespace GossipMesh.Core
                 var ip = stream.ReadIPAddress();
                 var gossipPort = stream.ReadPort();
                 var generation = (byte)stream.ReadByte();
-                ushort? servicePort = memberState == MemberState.Alive ? (ushort?)stream.ReadPort() : null;
-                byte? service = memberState == MemberState.Alive ? (byte?)stream.ReadByte() : null;
+                ushort servicePort = memberState == MemberState.Alive ? (ushort)stream.ReadPort() : (ushort)0;
+                byte service = memberState == MemberState.Alive ? (byte)stream.ReadByte() : (byte)0;
 
                 var ipEndPoint = new IPEndPoint(ip, gossipPort);
 
@@ -319,14 +319,15 @@ namespace GossipMesh.Core
                     {
                         Member member;
                         if (_members.TryGetValue(ipEndPoint, out member) &&
-                            (member.Generation < generation || MemberStateSuperseded(member.State, memberState)))
+                            (member.Generation < generation || 
+                            (member.Generation == generation && MemberStateSuperseded(member.State, memberState))))
                         {
                             member.State = memberState;
                             member.Generation = generation;
                             _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
                         }
 
-                        else if (member == null && memberState == MemberState.Alive)
+                        else if (member == null)
                         {
                             member = new Member
                             {
@@ -334,8 +335,8 @@ namespace GossipMesh.Core
                                 IP = ip,
                                 GossipPort = gossipPort,
                                 Generation = generation,
-                                ServicePort = servicePort.Value,
-                                Service = service.Value,
+                                ServicePort = servicePort,
+                                Service = service,
                             };
 
                             _members.Add(ipEndPoint, member);
@@ -345,14 +346,10 @@ namespace GossipMesh.Core
                 }
 
                 // handle any state claims about ourselves
-                else if (IsLaterGeneration(generation, _self.Generation))
+                else if (IsLaterGeneration(generation, _self.Generation) || 
+                        (memberState != MemberState.Alive && generation == _self.Generation))
                 {
                     _self.Generation = generation++;
-                }
-
-                else if (memberState != MemberState.Alive && generation == _self.Generation)
-                {
-                    _self.Generation = _self.Generation++;
                 }
             }
         }
@@ -421,7 +418,7 @@ namespace GossipMesh.Core
         {
             lock (_awaitingAckMembersLock)
             {
-                foreach (var awaitingAck in _awaitingAckMembers)
+                foreach (var awaitingAck in _awaitingAckMembers.ToArray())
                 {
                     // if we havn't recieved an ack before the timeout
                     if (awaitingAck.Value < DateTime.Now)
@@ -431,6 +428,7 @@ namespace GossipMesh.Core
                             if (_members.TryGetValue(awaitingAck.Key, out var member) && member.State == MemberState.Alive || member.State == MemberState.Suspicious)
                             {
                                 member.State = MemberState.Dead;
+                                _awaitingAckMembers.Remove(awaitingAck.Key);
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
                             }
                         }
