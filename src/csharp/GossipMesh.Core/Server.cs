@@ -148,9 +148,9 @@ namespace GossipMesh.Core
                         var i = _rand.Next(0, members.Length);
                         var member = members[i];
 
+                        AddAwaitingAck(member.GossipEndPoint);
                         await PingAsync(_udpServer, member.GossipEndPoint, members);
 
-                        AddAwaitingAck(member.GossipEndPoint);
                         await Task.Delay(_ackTimeoutMs).ConfigureAwait(false);
 
                         // check was not acked
