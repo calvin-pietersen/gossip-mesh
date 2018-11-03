@@ -34,7 +34,6 @@ namespace GossipMesh.Core
                 State == MemberState.Dead && newState == MemberState.Left;
         }
 
-
         public void WriteTo(Stream stream)
         {
             stream.WriteByte((byte)State);

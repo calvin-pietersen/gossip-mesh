@@ -17,7 +17,5 @@ namespace GossipMesh.Core
         public byte Service { get; set; }
         public ushort ServicePort { get; set; }
         public IPEndPoint[] SeedMembers { get; set; }
-
-        //int listenPort, int protocolPeriodMs, int ackTimeoutMs, ILogger logger, List<IPEndPoint> seedMembers = null
     }
 }

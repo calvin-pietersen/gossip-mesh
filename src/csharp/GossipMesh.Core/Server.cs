@@ -55,7 +55,7 @@ namespace GossipMesh.Core
             // bootstrap
             Task.Run(async () => await Bootstraper().ConfigureAwait(false)).ConfigureAwait(false);
 
-            // recieve requests
+            // receive requests
             Task.Run(async () => await Listener().ConfigureAwait(false)).ConfigureAwait(false);
 
             // gossip
@@ -122,7 +122,7 @@ namespace GossipMesh.Core
                         // update members
                         UpdateMembers(stream);
 
-                        var members = GetMembers();
+                        var members = RandomlyGetMembers();
                         await RequestHandler(request, messageType, sourceEndPoint, destinationEndPoint, members).ConfigureAwait(false);
                     }
                 }
@@ -139,13 +139,12 @@ namespace GossipMesh.Core
             {
                 try
                 {
-                    var members = GetMembers();
+                    var members = RandomlyGetMembers();
 
                     // ping member
                     if (members.Length > 0)
                     {
-                        var i = _rand.Next(0, members.Length);
-                        var member = members[i];
+                        var member = members[0];
 
                         AddAwaitingAck(member.GossipEndPoint);
                         await PingAsync(_udpServer, member.GossipEndPoint, members);
@@ -155,7 +154,11 @@ namespace GossipMesh.Core
                         // check was not acked
                         if (CheckWasNotAcked(member.GossipEndPoint))
                         {
-                            var indirectEndpoints = GetIndirectEndPoints(member.GossipEndPoint, members);
+                            var indirectEndpoints = members
+                                .Skip(1)
+                                .Take(2)
+                                .Select(m => m.GossipEndPoint);
+
                             await PingRequestAsync(_udpServer, member.GossipEndPoint, indirectEndpoints, members);
 
                             await Task.Delay(_ackTimeoutMs).ConfigureAwait(false);
@@ -399,16 +402,22 @@ namespace GossipMesh.Core
             return udpClient;
         }
 
-        private Member[] GetMembers()
+        private Member[] RandomlyGetMembers()
         {
-            Member[] members = null;
             lock (_memberLocker)
             {
-                members = new Member[_members.Count];
+                var members = new Member[_members.Count];
                 _members.Values.CopyTo(members, 0);
-            }
 
-            return members;
+                if (members.Length <= 1)
+                {
+                    return members;
+                }
+
+                return new RandomVisit<Member>(members)
+                    .Take(50)
+                    .ToArray();
+            }
         }
 
         private void HandleSuspiciousMember(IPEndPoint endPoint)
@@ -496,19 +505,6 @@ namespace GossipMesh.Core
         private bool EndPointsMatch(IPEndPoint ipEndPointA, IPEndPoint ipEndPointB)
         {
             return ipEndPointA.Port == ipEndPointB.Port && ipEndPointA.Address.Equals(ipEndPointB.Address);
-        }
-
-        private IEnumerable<IPEndPoint> GetIndirectEndPoints(IPEndPoint directEndPoint, Member[] members)
-        {
-            if (members.Length <= 1)
-            {
-                return Enumerable.Empty<IPEndPoint>();
-            }
-
-            return new RandomVisit<Member>(members)
-                .Where(m => !EndPointsMatch(directEndPoint, m.GossipEndPoint))
-                .Select(m => m.GossipEndPoint)
-                .Take(Math.Min(2, members.Length));
         }
 
         private async Task WaitForProtocolPeriod()
