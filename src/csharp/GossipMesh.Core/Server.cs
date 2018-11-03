@@ -14,33 +14,33 @@ namespace GossipMesh.Core
         private readonly Member _self;
         private readonly int _protocolPeriodMs;
         private readonly int _ackTimeoutMs;
-        private readonly List<IPEndPoint> _seedMembers;
+        private readonly IPEndPoint[] _seedMembers;
         private volatile bool _bootstrapping;
         private readonly object _memberLocker = new Object();
         private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
-        private readonly object _awaitingAckMembersLock = new Object();
-        private volatile Dictionary<IPEndPoint, DateTime> _awaitingAckMembers = new Dictionary<IPEndPoint, DateTime>();
+        private readonly object _awaitingAcksLock = new Object();
+        private volatile Dictionary<IPEndPoint, DateTime> _awaitingAcks = new Dictionary<IPEndPoint, DateTime>();
         private DateTime _lastProtocolPeriod = DateTime.Now;
         private readonly Random _rand = new Random();
         private UdpClient _udpServer;
 
         private readonly ILogger _logger;
 
-        public Server(int listenPort, int protocolPeriodMs, int ackTimeoutMs, ILogger logger, List<IPEndPoint> seedMembers = null)
+        public Server(ServerOptions options, ILogger logger)
         {
-            _protocolPeriodMs = protocolPeriodMs;
-            _ackTimeoutMs = ackTimeoutMs;
-            _seedMembers = seedMembers;
-            _bootstrapping = seedMembers != null && seedMembers.Count > 0;
+            _protocolPeriodMs = options.ProtocolPeriodMilliseconds;
+            _ackTimeoutMs = options.AckTimeoutMilliseconds;
+            _seedMembers = options.SeedMembers;
+            _bootstrapping = options.SeedMembers != null && options.SeedMembers.Length > 0;
 
             _self = new Member
             {
                 State = MemberState.Alive,
                 IP = GetLocalIPAddress(),
-                GossipPort = (ushort)listenPort,
+                GossipPort = options.ListenPort,
                 Generation = 1,
-                Service = 1,
-                ServicePort = 8080
+                Service = options.Service,
+                ServicePort = options.ServicePort
             };
 
             _logger = logger;
@@ -53,16 +53,16 @@ namespace GossipMesh.Core
             _udpServer = CreateUdpClient(_self.GossipEndPoint);
 
             // bootstrap
-            Task.Run(async () => await Bootstrap().ConfigureAwait(false)).ConfigureAwait(false);
+            Task.Run(async () => await Bootstraper().ConfigureAwait(false)).ConfigureAwait(false);
 
             // recieve requests
             Task.Run(async () => await Listener().ConfigureAwait(false)).ConfigureAwait(false);
 
             // gossip
-            Task.Run(async () => await GossipPump().ConfigureAwait(false)).ConfigureAwait(false);
+            Task.Run(async () => await Gossiper().ConfigureAwait(false)).ConfigureAwait(false);
         }
 
-        private async Task Bootstrap()
+        private async Task Bootstraper()
         {
             if (_bootstrapping)
             {
@@ -72,7 +72,7 @@ namespace GossipMesh.Core
                 while (_bootstrapping)
                 {
                     // ping seed
-                    var i = _rand.Next(0, _seedMembers.Count);
+                    var i = _rand.Next(0, _seedMembers.Length);
                     await PingAsync(_udpServer, _seedMembers[i]);
 
                     await Task.Delay(_protocolPeriodMs).ConfigureAwait(false);
@@ -95,15 +95,14 @@ namespace GossipMesh.Core
                     using (var stream = new MemoryStream(request.Buffer, false))
                     {
                         var messageType = (MessageType)stream.ReadByte();
+                        _logger.LogDebug("Gossip.Mesh recieved {MessageType} from {RemoteEndPoint}", messageType, request.RemoteEndPoint);
 
                         // finish bootrapping
                         if (_bootstrapping)
                         {
-                            _logger.LogInformation("Gossip.Mesh finished bootstrapping");
                             _bootstrapping = false;
+                            _logger.LogInformation("Gossip.Mesh finished bootstrapping");
                         }
-
-                        _logger.LogDebug("Gossip.Mesh recieved {MessageType} from {RemoteEndPoint}", messageType, request.RemoteEndPoint);
 
                         IPEndPoint destinationEndPoint;
                         IPEndPoint sourceEndPoint;
@@ -134,7 +133,7 @@ namespace GossipMesh.Core
             }
         }
 
-        private async Task GossipPump()
+        private async Task Gossiper()
         {
             while (true)
             {
@@ -319,8 +318,8 @@ namespace GossipMesh.Core
                     {
                         Member member;
                         if (_members.TryGetValue(ipEndPoint, out member) &&
-                            (member.Generation < generation || 
-                            (member.Generation == generation && MemberStateSuperseded(member.State, memberState))))
+                            (member.IsLaterGeneration(generation) || 
+                            (member.Generation == generation && member.IsStateSuperseded(memberState))))
                         {
                             RemoveAwaitingAck(member.GossipEndPoint);
 
@@ -356,7 +355,7 @@ namespace GossipMesh.Core
                 }
 
                 // handle any state claims about ourselves
-                else if (IsLaterGeneration(generation, _self.Generation) || 
+                else if (_self.IsLaterGeneration(generation) || 
                         (memberState != MemberState.Alive && generation == _self.Generation))
                 {
                     _self.Generation = (byte)(generation + 1);
@@ -426,9 +425,9 @@ namespace GossipMesh.Core
 
         private void HandleDeadMembers()
         {
-            lock (_awaitingAckMembersLock)
+            lock (_awaitingAcksLock)
             {
-                foreach (var awaitingAck in _awaitingAckMembers.ToArray())
+                foreach (var awaitingAck in _awaitingAcks.ToArray())
                 {
                     // if we havn't recieved an ack before the timeout
                     if (awaitingAck.Value < DateTime.Now)
@@ -438,7 +437,7 @@ namespace GossipMesh.Core
                             if (_members.TryGetValue(awaitingAck.Key, out var member) && member.State == MemberState.Alive || member.State == MemberState.Suspicious)
                             {
                                 member.State = MemberState.Dead;
-                                _awaitingAckMembers.Remove(awaitingAck.Key);
+                                _awaitingAcks.Remove(awaitingAck.Key);
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
                             }
                         }
@@ -463,11 +462,11 @@ namespace GossipMesh.Core
 
         private void AddAwaitingAck(IPEndPoint endPoint)
         {
-            lock (_awaitingAckMembersLock)
+            lock (_awaitingAcksLock)
             {
-                if (!_awaitingAckMembers.ContainsKey(endPoint))
+                if (!_awaitingAcks.ContainsKey(endPoint))
                 {
-                    _awaitingAckMembers.Add(endPoint, DateTime.Now.AddMilliseconds(_protocolPeriodMs * 5));
+                    _awaitingAcks.Add(endPoint, DateTime.Now.AddMilliseconds(_protocolPeriodMs * 5));
                 }
             }
         }
@@ -475,9 +474,9 @@ namespace GossipMesh.Core
         private bool CheckWasNotAcked(IPEndPoint ipEndPoint)
         {
             var wasNotAcked = false;
-            lock (_awaitingAckMembersLock)
+            lock (_awaitingAcksLock)
             {
-                wasNotAcked = _awaitingAckMembers.ContainsKey(ipEndPoint);
+                wasNotAcked = _awaitingAcks.ContainsKey(ipEndPoint);
             }
 
             return wasNotAcked;
@@ -485,11 +484,11 @@ namespace GossipMesh.Core
 
         private void RemoveAwaitingAck(IPEndPoint endPoint)
         {
-            lock (_awaitingAckMembersLock)
+            lock (_awaitingAcksLock)
             {
-                if (_awaitingAckMembers.ContainsKey(endPoint))
+                if (_awaitingAcks.ContainsKey(endPoint))
                 {
-                    _awaitingAckMembers.Remove(endPoint);
+                    _awaitingAcks.Remove(endPoint);
                 }
             }
         }
@@ -517,20 +516,6 @@ namespace GossipMesh.Core
             var syncTime = _protocolPeriodMs - (int)(DateTime.Now - _lastProtocolPeriod).TotalMilliseconds;
             await Task.Delay(syncTime).ConfigureAwait(false);
             _lastProtocolPeriod = DateTime.Now;
-        }
-
-        private bool IsLaterGeneration(byte generationA, byte generationB)
-        {
-            return ((0 < (generationA - generationB)) && ((generationA - generationB) < 191))
-                 || ((generationA - generationB) <= -191);
-        }
-
-        private bool MemberStateSuperseded(MemberState memberStateA, MemberState memberStateB)
-        {
-            // alive < suspicious < dead < left
-            return (memberStateA == MemberState.Alive && memberStateB != MemberState.Alive) ||
-                (memberStateA == MemberState.Suspicious && (memberStateB == MemberState.Dead || memberStateB == MemberState.Left)) ||
-                memberStateA == MemberState.Dead && memberStateB == MemberState.Left;
         }
 
         public void Dispose()

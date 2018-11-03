@@ -12,13 +12,13 @@ namespace GossipMesh.Seed
     {
         public static async Task Main(string[] args)
         {
-            var listenPort = int.Parse(args[0]);
+            var listenPort = ushort.Parse(args[0]);
 
             var seeds = args.Skip(1).Select(s =>
             {
                 var endpoint = s.Split(":");
                 return new IPEndPoint(IPAddress.Parse(endpoint[0]), int.Parse(endpoint[1]));
-            }).ToList();
+            }).ToArray();
 
             var logger = new LoggerFactory()
                 .AddConsole()
@@ -30,12 +30,21 @@ namespace GossipMesh.Seed
             // var logger = loggerFactory
             //     .CreateLogger<Program>();
 
-            var server = new GossipMesh.Core.Server(listenPort, 500, 200, logger, seeds);
+            var options = new ServerOptions
+            {
+                ProtocolPeriodMilliseconds = 500,
+                AckTimeoutMilliseconds = 200,
+                ListenPort = listenPort,
+                Service = 1,
+                ServicePort = 8080,
+                SeedMembers = seeds
+            };
+
+            var server = new GossipMesh.Core.Server(options, logger);
             server.Start();
 
             while (true)
             {
-                //logger.LogInformation("seed node doing random things");
                 await Task.Delay(10000).ConfigureAwait(false);
             }
         }

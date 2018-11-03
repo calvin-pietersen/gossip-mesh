@@ -9,7 +9,7 @@ namespace GossipMesh.Core
         public IPAddress IP { get; set; }
         public ushort GossipPort { get; set; }
         public byte Generation { get; set; }
-        public ushort Service { get; set; }
+        public byte Service { get; set; }
         public ushort ServicePort { get; set; }
 
         public IPEndPoint GossipEndPoint
@@ -20,6 +20,21 @@ namespace GossipMesh.Core
             }
         }
 
+        public bool IsLaterGeneration(byte newGeneration)
+        {
+            return ((0 < (newGeneration - Generation)) && ((newGeneration - Generation) < 191))
+                 || ((newGeneration - Generation) <= -191);
+        }
+
+        public bool IsStateSuperseded(MemberState newState)
+        {
+            // alive < suspicious < dead < left
+            return (State == MemberState.Alive && newState != MemberState.Alive) ||
+                (State == MemberState.Suspicious && (newState == MemberState.Dead || newState == MemberState.Left)) ||
+                State == MemberState.Dead && newState == MemberState.Left;
+        }
+
+
         public void WriteTo(Stream stream)
         {
             stream.WriteByte((byte)State);
@@ -29,7 +44,7 @@ namespace GossipMesh.Core
             if (State == MemberState.Alive)
             {
                 stream.WritePort(ServicePort);
-                stream.WriteByte((byte)Service);
+                stream.WriteByte(Service);
             }
         }
 
