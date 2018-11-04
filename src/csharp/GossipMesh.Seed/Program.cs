@@ -28,8 +28,8 @@ namespace GossipMesh.Seed
             var options = new ServerOptions
             {
                 MaxUdpPacketBytes = 508,                
-                ProtocolPeriodMilliseconds = 500,
-                AckTimeoutMilliseconds = 200,
+                ProtocolPeriodMilliseconds = 200,
+                AckTimeoutMilliseconds = 80,
                 NumberOfIndirectEndpoints = 2,
                 ListenPort = listenPort,
                 Service = 1,

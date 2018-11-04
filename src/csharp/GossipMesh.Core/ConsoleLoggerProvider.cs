@@ -27,7 +27,7 @@ namespace GossipMesh.Core
                     return;
                 }
 
-                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} {logLevel}: {_categoryName}[{eventId.Id}]: {formatter(state, exception)}");
+                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} {logLevel}: {formatter(state, exception)}");
             }
 
             public bool IsEnabled(LogLevel logLevel)
