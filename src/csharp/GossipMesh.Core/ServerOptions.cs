@@ -13,6 +13,7 @@ namespace GossipMesh.Core
     {
         public int ProtocolPeriodMilliseconds { get; set; }
         public int AckTimeoutMilliseconds { get; set; }
+        public int MaxUdpPacketBytes {get; set; }
         public ushort ListenPort { get; set; }
         public byte Service { get; set; }
         public ushort ServicePort { get; set; }

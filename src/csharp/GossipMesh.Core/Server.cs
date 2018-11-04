@@ -14,6 +14,7 @@ namespace GossipMesh.Core
         private readonly Member _self;
         private readonly int _protocolPeriodMs;
         private readonly int _ackTimeoutMs;
+        private readonly int _maxUdpPacketBytes;
         private readonly IPEndPoint[] _seedMembers;
         private volatile bool _bootstrapping;
         private readonly object _memberLocker = new Object();
@@ -30,6 +31,7 @@ namespace GossipMesh.Core
         {
             _protocolPeriodMs = options.ProtocolPeriodMilliseconds;
             _ackTimeoutMs = options.AckTimeoutMilliseconds;
+            _maxUdpPacketBytes = options.MaxUdpPacketBytes;
             _seedMembers = options.SeedMembers;
             _bootstrapping = options.SeedMembers != null && options.SeedMembers.Length > 0;
 
@@ -122,7 +124,7 @@ namespace GossipMesh.Core
                         // update members
                         UpdateMembers(stream);
 
-                        var members = RandomlyGetMembers();
+                        var members = GetMembers();
                         await RequestHandler(request, messageType, sourceEndPoint, destinationEndPoint, members).ConfigureAwait(false);
                     }
                 }
@@ -139,12 +141,13 @@ namespace GossipMesh.Core
             {
                 try
                 {
-                    var members = RandomlyGetMembers();
+                    var members = GetMembers();
 
                     // ping member
                     if (members.Length > 0)
                     {
-                        var member = members[0];
+                        var i = _rand.Next(0, members.Length);
+                        var member = members[i];
 
                         AddAwaitingAck(member.GossipEndPoint);
                         await PingAsync(_udpServer, member.GossipEndPoint, members);
@@ -228,7 +231,7 @@ namespace GossipMesh.Core
         {
             _logger.LogDebug("Gossip.Mesh sending Ping to {endpoint}", endpoint);
 
-            using (var stream = new MemoryStream(508))
+            using (var stream = new MemoryStream(_maxUdpPacketBytes))
             {
                 stream.WriteByte((byte)MessageType.Ping);
                 WriteMembers(stream, members);
@@ -243,7 +246,7 @@ namespace GossipMesh.Core
             {
                 _logger.LogDebug("Gossip.Mesh sending PingRequest to {destinationEndpoint} via {indirectEndpoint}", destinationEndpoint, indirectEndpoint);
 
-                using (var stream = new MemoryStream(508))
+                using (var stream = new MemoryStream(_maxUdpPacketBytes))
                 {
                     stream.WriteByte((byte)MessageType.PingRequest);
 
@@ -268,7 +271,7 @@ namespace GossipMesh.Core
         {
             _logger.LogDebug("Gossip.Mesh sending Ack to {endpoint}", endpoint);
 
-            using (var stream = new MemoryStream(508))
+            using (var stream = new MemoryStream(_maxUdpPacketBytes))
             {
                 stream.WriteByte((byte)MessageType.Ack);
                 WriteMembers(stream, members);
@@ -281,7 +284,7 @@ namespace GossipMesh.Core
         {
             _logger.LogDebug("Gossip.Mesh sending AckRequest to {destinationEndpoint} via {indirectEndPoint}", destinationEndpoint, indirectEndPoint);
 
-            using (var stream = new MemoryStream(508))
+            using (var stream = new MemoryStream(_maxUdpPacketBytes))
             {
                 stream.WriteByte((byte)MessageType.AckRequest);
 
@@ -326,14 +329,7 @@ namespace GossipMesh.Core
                         {
                             RemoveAwaitingAck(member.GossipEndPoint);
 
-                            member.State = memberState;
-                            member.Generation = generation;
-
-                            if (memberState == MemberState.Alive)
-                            {
-                                member.ServicePort = servicePort;
-                                member.Service = service;
-                            }
+                            member.Update(memberState, generation, service, servicePort);
                     
                             _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
                             
@@ -376,7 +372,7 @@ namespace GossipMesh.Core
             {
                 var i = 0;
                 {
-                    while (i < members.Length && stream.Position < 508 - 20)
+                    while (i < members.Length && stream.Position < _maxUdpPacketBytes - 11)
                     {
                         var member = members[i];
                         members[i].WriteTo(stream);
@@ -402,21 +398,14 @@ namespace GossipMesh.Core
             return udpClient;
         }
 
-        private Member[] RandomlyGetMembers()
+        private Member[] GetMembers()
         {
             lock (_memberLocker)
             {
-                var members = new Member[_members.Count];
-                _members.Values.CopyTo(members, 0);
-
-                if (members.Length <= 1)
-                {
-                    return members;
-                }
-
-                return new RandomVisit<Member>(members)
-                    .Take(50)
-                    .ToArray();
+                return _members
+                    .Values
+                    .OrderBy(m => m.GossipCounter)
+                    .ToArray();       
             }
         }
 
@@ -426,7 +415,7 @@ namespace GossipMesh.Core
             {
                 if (_members.TryGetValue(endPoint, out var member) && member.State == MemberState.Alive)
                 {
-                    member.State = MemberState.Suspicious;
+                    member.Update(MemberState.Suspicious);
                     _logger.LogInformation("Gossip.Mesh suspicious member {member}", member);
                 }
             }
@@ -445,7 +434,7 @@ namespace GossipMesh.Core
                         {
                             if (_members.TryGetValue(awaitingAck.Key, out var member) && member.State == MemberState.Alive || member.State == MemberState.Suspicious)
                             {
-                                member.State = MemberState.Dead;
+                                member.Update(MemberState.Dead);
                                 _awaitingAcks.Remove(awaitingAck.Key);
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
                             }

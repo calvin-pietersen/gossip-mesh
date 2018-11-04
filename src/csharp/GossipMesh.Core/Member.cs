@@ -1,23 +1,46 @@
 using System.IO;
 using System.Net;
+using System.Threading;
 
 namespace GossipMesh.Core
 {
     public class Member
     {
+        private long _gossipCounter = 0;
+
         public MemberState State { get; set; }
         public IPAddress IP { get; set; }
         public ushort GossipPort { get; set; }
         public byte Generation { get; set; }
         public byte Service { get; set; }
         public ushort ServicePort { get; set; }
-
+        public long GossipCounter { get { return Interlocked.Read(ref _gossipCounter); } }
         public IPEndPoint GossipEndPoint
         {
             get
             {
                 return new IPEndPoint(IP, GossipPort);
             }
+        }
+
+        public void Update(MemberState state, byte generation, byte service = 0, ushort servicePort = 0)
+        {
+            State = state;
+            Generation = generation;
+
+            if (state == MemberState.Alive)
+            {
+                Service = service;
+                ServicePort = servicePort;
+            }
+
+            Interlocked.Exchange(ref _gossipCounter, 0);
+        }
+
+        public void Update(MemberState state)
+        {
+            State = state;
+            Interlocked.Exchange(ref _gossipCounter, 0);
         }
 
         public bool IsLaterGeneration(byte newGeneration)
@@ -45,6 +68,8 @@ namespace GossipMesh.Core
                 stream.WritePort(ServicePort);
                 stream.WriteByte(Service);
             }
+
+            Interlocked.Increment(ref _gossipCounter);
         }
 
         public override string ToString()

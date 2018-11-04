@@ -9,3 +9,4 @@ obj/
 *.nupkg
 /packages/
 /protoc_plugins/
+*.sh

@@ -32,6 +32,8 @@ namespace GossipMesh.Core
 
             public bool IsEnabled(LogLevel logLevel)
             {
+                if (logLevel == LogLevel.Debug) return false;
+
                 return true;
             }
 
