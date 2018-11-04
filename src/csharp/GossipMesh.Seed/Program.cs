@@ -19,22 +19,18 @@ namespace GossipMesh.Seed
                 var endpoint = s.Split(":");
                 return new IPEndPoint(IPAddress.Parse(endpoint[0]), int.Parse(endpoint[1]));
             }).ToArray();
-
-            var logger = new LoggerFactory()
-                .AddConsole()
-                .AddDebug()
-                .CreateLogger<Program>();
       
-            // var loggerFactory = new LoggerFactory();
-            // loggerFactory.AddProvider(new ConsoleLoggerProvider());
-            // var logger = loggerFactory
-            //     .CreateLogger<Program>();
+            var loggerFactory = new LoggerFactory();
+            loggerFactory.AddProvider(new ConsoleLoggerProvider());
+            var logger = loggerFactory
+                .CreateLogger<Program>();
 
             var options = new ServerOptions
             {
-                ProtocolPeriodMilliseconds = 100,
-                AckTimeoutMilliseconds = 40,
-                MaxUdpPacketBytes = 508,
+                MaxUdpPacketBytes = 508,                
+                ProtocolPeriodMilliseconds = 500,
+                AckTimeoutMilliseconds = 200,
+                NumberOfIndirectEndpoints = 2,
                 ListenPort = listenPort,
                 Service = 1,
                 ServicePort = 8080,

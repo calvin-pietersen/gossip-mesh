@@ -12,9 +12,10 @@ namespace GossipMesh.Core
     public class Server : IDisposable
     {
         private readonly Member _self;
+        private readonly int _maxUdpPacketBytes;
         private readonly int _protocolPeriodMs;
         private readonly int _ackTimeoutMs;
-        private readonly int _maxUdpPacketBytes;
+        private readonly int _numberOfIndirectEndpoints;
         private readonly IPEndPoint[] _seedMembers;
         private volatile bool _bootstrapping;
         private readonly object _memberLocker = new Object();
@@ -29,9 +30,10 @@ namespace GossipMesh.Core
 
         public Server(ServerOptions options, ILogger logger)
         {
+            _maxUdpPacketBytes = options.MaxUdpPacketBytes;            
             _protocolPeriodMs = options.ProtocolPeriodMilliseconds;
             _ackTimeoutMs = options.AckTimeoutMilliseconds;
-            _maxUdpPacketBytes = options.MaxUdpPacketBytes;
+            _numberOfIndirectEndpoints = options.NumberOfIndirectEndpoints;
             _seedMembers = options.SeedMembers;
             _bootstrapping = options.SeedMembers != null && options.SeedMembers.Length > 0;
 
@@ -128,9 +130,10 @@ namespace GossipMesh.Core
                         await RequestHandler(request, messageType, sourceEndPoint, destinationEndPoint, members).ConfigureAwait(false);
                     }
                 }
+
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception");
+                    _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
                 }
             }
         }
@@ -157,10 +160,7 @@ namespace GossipMesh.Core
                         // check was not acked
                         if (CheckWasNotAcked(member.GossipEndPoint))
                         {
-                            var indirectEndpoints = members
-                                .Skip(1)
-                                .Take(2)
-                                .Select(m => m.GossipEndPoint);
+                            var indirectEndpoints = GetIndirectEndPoints(member.GossipEndPoint, members);
 
                             await PingRequestAsync(_udpServer, member.GossipEndPoint, indirectEndpoints, members);
 
@@ -175,9 +175,10 @@ namespace GossipMesh.Core
 
                     HandleDeadMembers();
                 }
+
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception");
+                    _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
                 }
 
                 await WaitForProtocolPeriod().ConfigureAwait(false);
@@ -327,7 +328,7 @@ namespace GossipMesh.Core
                             (member.IsLaterGeneration(generation) || 
                             (member.Generation == generation && member.IsStateSuperseded(memberState))))
                         {
-                            RemoveAwaitingAck(member.GossipEndPoint);
+                            RemoveAwaitingAck(member.GossipEndPoint); // stops dead claim escalation
 
                             member.Update(memberState, generation, service, servicePort);
                     
@@ -387,14 +388,16 @@ namespace GossipMesh.Core
             var udpClient = new UdpClient();
             try
             {
-                udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, false);
                 udpClient.Client.Bind(endPoint);
                 udpClient.DontFragment = true;
             }
+
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception");
+                _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
             }
+
             return udpClient;
         }
 
@@ -407,6 +410,18 @@ namespace GossipMesh.Core
                     .OrderBy(m => m.GossipCounter)
                     .ToArray();       
             }
+        }
+
+        private IEnumerable<IPEndPoint> GetIndirectEndPoints(IPEndPoint directEndPoint, Member[] members)
+        {
+            if (members.Length <= 1)
+            {
+                return Enumerable.Empty<IPEndPoint>();
+            }
+             return new RandomVisit<Member>(members)
+                .Where(m => !EndPointsMatch(directEndPoint, m.GossipEndPoint))
+                .Select(m => m.GossipEndPoint)
+                .Take(Math.Min(_numberOfIndirectEndpoints, members.Length));
         }
 
         private void HandleSuspiciousMember(IPEndPoint endPoint)
