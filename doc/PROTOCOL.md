@@ -22,10 +22,10 @@ These events have the following format:
 |------------------|---------|---------------------------------------------------------|
 | type             | 1 byte  | alive = 0, suspicious = 1, dead = 2, left = 3           |
 | node ip address  | 4 bytes | IP4 only                                                |
-| node gossip port | 2 bytes |                                                         |
+| node gossip port | 2 bytes | big endian                                              |
 | node generation  | 1 byte  | used to supersede events - see below                    |
 | service          | 1 byte  | only for _alive_ events, meaning defined by application |
-| service port     | 2 bytes | only for _alive_ events                                 |
+| service port     | 2 bytes | only for _alive_ events, big endian                     |
 
 Thus, _alive_ events are 11 bytes long, and all other events are 8
 bytes long.
@@ -150,9 +150,9 @@ each other:
 |------------------------|---------|---------------------------------------|
 | type                   | 1 byte  | forwarded ack = 2, forwarded ping = 3 |
 | destination ip address | 4 bytes |                                       |
-| destination port       | 2 bytes |                                       |
+| destination port       | 2 bytes | big endian                            |
 | source ip address      | 4 bytes |                                       |
-| source port            | 2 bytes |                                       |
+| source port            | 2 bytes | big endian                            |
 
 A forwarded message contains the IP address and port of the source
 (ie. `A`), and the IP address of the destination (ie. `B`) to enable
