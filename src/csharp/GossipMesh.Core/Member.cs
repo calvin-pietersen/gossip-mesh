@@ -65,8 +65,8 @@ namespace GossipMesh.Core
 
             if (State == MemberState.Alive)
             {
-                stream.WritePort(ServicePort);
                 stream.WriteByte(Service);
+                stream.WritePort(ServicePort);
             }
 
             Interlocked.Increment(ref _gossipCounter);

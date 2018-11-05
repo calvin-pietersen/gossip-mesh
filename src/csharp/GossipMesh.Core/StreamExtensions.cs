@@ -16,7 +16,9 @@ namespace GossipMesh.Core
             var bigByte = (byte)stream.ReadByte();
             var littleByte = (byte)stream.ReadByte();
 
-            return BitConverter.ToUInt16(new byte[] { littleByte, bigByte}, 0);
+            return BitConverter.IsLittleEndian ?
+             BitConverter.ToUInt16(new byte[] { littleByte, bigByte}, 0) :
+             BitConverter.ToUInt16(new byte[] {bigByte, littleByte}, 0);
         }
 
         public static IPEndPoint ReadIPEndPoint(this Stream stream)

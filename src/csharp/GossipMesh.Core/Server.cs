@@ -313,8 +313,8 @@ namespace GossipMesh.Core
                 var ip = stream.ReadIPAddress();
                 var gossipPort = stream.ReadPort();
                 var generation = (byte)stream.ReadByte();
-                ushort servicePort = memberState == MemberState.Alive ? (ushort)stream.ReadPort() : (ushort)0;
                 byte service = memberState == MemberState.Alive ? (byte)stream.ReadByte() : (byte)0;
+                ushort servicePort = memberState == MemberState.Alive ? (ushort)stream.ReadPort() : (ushort)0;
 
                 var ipEndPoint = new IPEndPoint(ip, gossipPort);
 
