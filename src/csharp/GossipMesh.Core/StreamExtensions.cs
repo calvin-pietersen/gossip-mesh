@@ -13,7 +13,10 @@ namespace GossipMesh.Core
 
         public static ushort ReadPort(this Stream stream)
         {
-            return BitConverter.ToUInt16(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte() }, 0);
+            var bigByte = (byte)stream.ReadByte();
+            var littleByte = (byte)stream.ReadByte();
+
+            return BitConverter.ToUInt16(new byte[] { littleByte, bigByte}, 0);
         }
 
         public static IPEndPoint ReadIPEndPoint(this Stream stream)
@@ -34,14 +37,14 @@ namespace GossipMesh.Core
 
         public static void WritePort(this Stream stream, ushort port)
         {
-            stream.WriteByte((byte)port);
             stream.WriteByte((byte)(port >> 8));
+            stream.WriteByte((byte)port);
         }
 
         public static void WritePort(this Stream stream, int port)
         {
-            stream.WriteByte((byte)port);
             stream.WriteByte((byte)(port >> 8));
+            stream.WriteByte((byte)port);
         }
     }
 }

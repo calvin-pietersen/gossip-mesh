@@ -30,7 +30,7 @@ namespace GossipMesh.Core
 
         public Server(ServerOptions options, ILogger logger)
         {
-            _maxUdpPacketBytes = options.MaxUdpPacketBytes;            
+            _maxUdpPacketBytes = options.MaxUdpPacketBytes;
             _protocolPeriodMs = options.ProtocolPeriodMilliseconds;
             _ackTimeoutMs = options.AckTimeoutMilliseconds;
             _numberOfIndirectEndpoints = options.NumberOfIndirectEndpoints;
@@ -40,7 +40,7 @@ namespace GossipMesh.Core
             _self = new Member
             {
                 State = MemberState.Alive,
-                IP = GetLocalIPAddress(),
+                IP = options.ListenAddress,
                 GossipPort = options.ListenPort,
                 Generation = 1,
                 Service = options.Service,
@@ -408,7 +408,7 @@ namespace GossipMesh.Core
                 return _members
                     .Values
                     .OrderBy(m => m.GossipCounter)
-                    .ToArray();       
+                    .ToArray();
             }
         }
 

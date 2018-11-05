@@ -12,13 +12,9 @@ namespace GossipMesh.Seed
     {
         public static async Task Main(string[] args)
         {
-            var listenPort = ushort.Parse(args[0]);
+            var listenEndPoint = IPEndPointFromString(args[0]);
 
-            var seeds = args.Skip(1).Select(s =>
-            {
-                var endpoint = s.Split(":");
-                return new IPEndPoint(IPAddress.Parse(endpoint[0]), int.Parse(endpoint[1]));
-            }).ToArray();
+            var seeds = args.Skip(1).Select(IPEndPointFromString).ToArray();
       
             var loggerFactory = new LoggerFactory();
             loggerFactory.AddProvider(new ConsoleLoggerProvider());
@@ -27,13 +23,14 @@ namespace GossipMesh.Seed
 
             var options = new ServerOptions
             {
-                MaxUdpPacketBytes = 508,                
+                MaxUdpPacketBytes = 508,
                 ProtocolPeriodMilliseconds = 200,
                 AckTimeoutMilliseconds = 80,
                 NumberOfIndirectEndpoints = 2,
-                ListenPort = listenPort,
-                Service = 1,
-                ServicePort = 8080,
+                ListenPort = (ushort)listenEndPoint.Port,
+                ListenAddress = listenEndPoint.Address,
+                Service = (byte)1,
+                ServicePort = (ushort)8080,
                 SeedMembers = seeds
             };
 
@@ -44,6 +41,12 @@ namespace GossipMesh.Seed
             {
                 await Task.Delay(10000).ConfigureAwait(false);
             }
+        }
+
+        public static IPEndPoint IPEndPointFromString(string ipEndPointString)
+        {
+                var endpoint = ipEndPointString.Split(":");
+                return new IPEndPoint(IPAddress.Parse(endpoint[0]), int.Parse(endpoint[1]));
         }
     }
 }

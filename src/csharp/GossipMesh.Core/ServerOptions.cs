@@ -15,6 +15,7 @@ namespace GossipMesh.Core
         public int ProtocolPeriodMilliseconds { get; set; }
         public int AckTimeoutMilliseconds { get; set; }
         public int NumberOfIndirectEndpoints { get; set; }
+        public IPAddress ListenAddress { get; set; }
         public ushort ListenPort { get; set; }
         public byte Service { get; set; }
         public ushort ServicePort { get; set; }
