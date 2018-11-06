@@ -57,16 +57,28 @@ received.
 
 Events invalidate each other according to the following rules:
  * event `X` invalidates event `Y` if the node generation of `X` is
-   greater than the node generation of `Y`,
+   "greater" than the node generation of `Y` (see below for the
+   details of this comparison),
  * if event `X` and `Y` have an equal node generation, then event `X`
    invalidates event `Y` if its type is "higher" according to the
-   following sequence: _alive_ < _suspicious_ < _dead_ < _left_
+   following sequence: _alive_ < _suspicious_ < _dead_ < _left_,
  * otherwise, event `Y` invalidates event `X` (in the case of equal
    events, either event may be chosen arbitrarily)
 
 Nodes should only send events that have not been invalidated.
 
-Events are send by being _disseminated_ in messages, which are also
+Generations are compared using a circular comparison, so incrementing
+the generation (mod 255) will always produce a "higher" generation
+than before. The comparison operation can be defined like this (in
+Java - note that byte operations are promoted to int):
+
+    // is `gen1` later than `gen2`?
+    boolean isLaterGeneration(byte gen1, byte gen2) {
+        return ((0 < gen1 - gen2) && (gen1 - gen2 < 191)
+                || (gen1 - gen2 <= -191));
+    }
+
+Events are sent by being _disseminated_ in messages, which are also
 used for failure detection. See the following sections for an
 explanation of messages.
 
