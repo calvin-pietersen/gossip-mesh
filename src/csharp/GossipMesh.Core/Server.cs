@@ -418,10 +418,16 @@ namespace GossipMesh.Core
             {
                 return Enumerable.Empty<IPEndPoint>();
             }
-             return new RandomVisit<Member>(members)
-                .Where(m => !EndPointsMatch(directEndPoint, m.GossipEndPoint))
+
+            var randomIndex = _rand.Next(0, members.Length);
+
+            return Enumerable.Range(randomIndex, _numberOfIndirectEndpoints + 1)
+                .Select(ri => ri % members.Length) // wrap the range around to the start if we hit the end
+                .Select(i => members[i])
+                .Where(m => m.GossipEndPoint != directEndPoint)
                 .Select(m => m.GossipEndPoint)
-                .Take(Math.Min(_numberOfIndirectEndpoints, members.Length));
+                .Distinct()
+                .Take(_numberOfIndirectEndpoints);
         }
 
         private void HandleSuspiciousMember(IPEndPoint endPoint)
