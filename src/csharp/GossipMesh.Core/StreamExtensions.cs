@@ -41,27 +41,46 @@ namespace GossipMesh.Core
             return new IPEndPoint(stream.ReadIPAddress(), stream.ReadPort());
         }
 
-        public static void WriteIPEndPoint(this Stream stream, IPEndPoint ipEndPoint)
-        {
-            stream.WriteIPAddress(ipEndPoint.Address);
-            stream.WritePort(ipEndPoint.Port);
-        }
-
         public static void WriteIPAddress(this Stream stream, IPAddress ipAddress)
         {
+            if (stream.Position > stream.Length - 4)
+            {
+                throw new EndOfStreamException("could not write ip address to stream with less than 4 bytes remaining");
+            }
+
+            if (ipAddress == null)
+            {
+                throw new ArgumentNullException(nameof(ipAddress));
+            }
+
             stream.Write(ipAddress.GetAddressBytes(), 0, 4);
         }
 
         public static void WritePort(this Stream stream, ushort port)
         {
+            if (stream.Position > stream.Length - 2)
+            {
+                throw new EndOfStreamException("could not port to stream with less than 2 bytes remaining");
+            }
+
             stream.WriteByte((byte)(port >> 8));
             stream.WriteByte((byte)port);
         }
 
-        public static void WritePort(this Stream stream, int port)
+        public static void WriteIPEndPoint(this Stream stream, IPEndPoint ipEndPoint)
         {
-            stream.WriteByte((byte)(port >> 8));
-            stream.WriteByte((byte)port);
+            if (stream.Position > stream.Length - 6)
+            {
+                throw new EndOfStreamException("could not write ip endpoint to stream with less than 6 bytes remaining");
+            }
+
+            if (ipEndPoint == null)
+            {
+                throw new ArgumentNullException(nameof(ipEndPoint));
+            }            
+
+            stream.WriteIPAddress(ipEndPoint.Address);
+            stream.WritePort((ushort)ipEndPoint.Port);
         }
     }
 }
