@@ -130,7 +130,7 @@ Thus, we have the following structure:
 
 | Field | Size    | Notes                       |
 |-------|---------|-----------------------------|
-| type  | 1 byte  | ack = 0, forwarded ping = 1 |
+| type  | 1 byte  | ack = 0, ping = 1 |
 
 ### Indirect health check
 
