@@ -19,28 +19,6 @@ namespace GossipMesh.Core.Tests
         }
 
         [Test]
-        public void ReadIPAddress_WithEmptyStream_ThrowsEndOfStreamException()
-        {
-            // arrange
-            var emptyBuffer = new byte[0];
-            Stream stream = new MemoryStream(emptyBuffer, false);
-
-            // assert
-            Assert.Throws(typeof(EndOfStreamException), () => stream.ReadIPAddress(), "could not read ip address from stream with less than 4 bytes remaining");
-        }
-
-        [Test]
-        public void ReadIPAddress_WithPartiallyCompleteStream_ThrowsEndOfStreamException()
-        {
-            // arrange
-            var adressBuffer = new byte[] { 192, 168 };
-            Stream stream = new MemoryStream(adressBuffer, false);
-
-            // assert
-            Assert.Throws(typeof(EndOfStreamException), () => stream.ReadIPAddress(), "could not read ip address from stream with less than 4 bytes remaining");
-        }
-
-        [Test]
         public void ReadIPAddress_WithCompleteStream_ReturnsIPAddress()
         {
             // arrange
@@ -67,28 +45,6 @@ namespace GossipMesh.Core.Tests
         }
 
         [Test]
-        public void ReadPort_WithEmptyStream_ThrowsEndOfStreamException()
-        {
-            // arrange
-            var emptyBuffer = new byte[0];
-            Stream stream = new MemoryStream(emptyBuffer, false);
-
-            // assert
-            Assert.Throws(typeof(EndOfStreamException), () => stream.ReadPort(), "could not read port from stream with less than 2 bytes remaining");
-        }
-
-        [Test]
-        public void ReadPort_WithPartiallyCompleteStream_ThrowsEndOfStreamException()
-        {
-            // arrange
-            var portBuffer = new byte[] { 255 };
-            Stream stream = new MemoryStream(portBuffer, false);
-
-            // assert
-            Assert.Throws(typeof(EndOfStreamException), () => stream.ReadPort(), "could not read port from stream with less than 2 bytes remaining");
-        }
-
-        [Test]
         public void ReadPort_WithCompleteStream_ReturnsPort()
         {
             // arrange
@@ -112,28 +68,6 @@ namespace GossipMesh.Core.Tests
 
             // assert
             Assert.Throws(typeof(NullReferenceException), () => stream.ReadIPEndPoint());
-        }
-
-        [Test]
-        public void ReadIPEndPoint_WithEmptyStream_ThrowsEndOfStreamException()
-        {
-            // arrange
-            var emptyBuffer = new byte[0];
-            Stream stream = new MemoryStream(emptyBuffer, false);
-
-            // assert
-            Assert.Throws(typeof(EndOfStreamException), () => stream.ReadIPEndPoint(), "could not read ip endpoint from stream with less than 6 bytes remaining");
-        }
-
-        [Test]
-        public void ReadIPEndPoint_WithPartiallyCompleteStream_ThrowsEndOfStreamException()
-        {
-            // arrange
-            var ipEndPointBuffer = new byte[] { 192, 168 };
-            Stream stream = new MemoryStream(ipEndPointBuffer, false);
-
-            // assert
-            Assert.Throws(typeof(EndOfStreamException), () => stream.ReadIPEndPoint(), "could not read ip endpoint from stream with less than 6 bytes remaining");
         }
 
         [Test]
@@ -177,18 +111,6 @@ namespace GossipMesh.Core.Tests
         }
 
         [Test]
-        public void WriteIPAddress_WithNotEnoughCapacity_ThrowsEndOfStreamException()
-        {
-            // arrange
-            byte[] buffer = new byte[0];
-            Stream stream = new MemoryStream(buffer, true);
-            IPAddress ipAddress = new IPAddress(new byte[] { 192, 168, 0, 1 });
-
-            // assert
-            Assert.Throws(typeof(EndOfStreamException), () => stream.WriteIPAddress(ipAddress), "could not write ip address to stream with less than 4 bytes remaining");
-        }
-
-        [Test]
         public void WriteIPAddress_WithEnoughCapacity_WritesSuccessfully()
         {
             // arrange
@@ -217,18 +139,6 @@ namespace GossipMesh.Core.Tests
         }
 
         [Test]
-        public void WritePort_WithNotEnoughCapacity_ThrowsEndOfStreamException()
-        {
-            // arrange
-            byte[] buffer = new byte[0];
-            Stream stream = new MemoryStream(buffer, true);
-            ushort port = ushort.MaxValue;
-
-            // assert
-            Assert.Throws(typeof(EndOfStreamException), () => stream.WritePort(port), "could not write port to stream with less than 2 bytes remaining");
-        }
-
-        [Test]
         public void WritePort_WithEnoughCapacity_WritesSuccessfully()
         {
             // arrange
@@ -251,7 +161,7 @@ namespace GossipMesh.Core.Tests
         {
             // arrange
             Stream stream = null;
-            IPAddress ipAddress = new IPAddress(new byte[] { 192, 168, 0, 1 });            
+            IPAddress ipAddress = new IPAddress(new byte[] { 192, 168, 0, 1 });
             IPEndPoint ipEndPoint = new IPEndPoint(ipAddress, ushort.MaxValue);
 
             // assert
@@ -271,19 +181,6 @@ namespace GossipMesh.Core.Tests
         }
 
         [Test]
-        public void WriteIPEndPoint_WithNotEnoughCapacity_ThrowsEndOfStreamException()
-        {
-            // arrange
-            byte[] buffer = new byte[0];
-            Stream stream = new MemoryStream(buffer, true);
-            IPAddress ipAddress = new IPAddress(new byte[] { 192, 168, 0, 1 });
-            IPEndPoint ipEndPoint = new IPEndPoint(ipAddress, ushort.MaxValue);
-
-            // assert
-            Assert.Throws(typeof(EndOfStreamException), () => stream.WriteIPEndPoint(ipEndPoint), "could not write ip endpoint to stream with less than 6 bytes remaining");
-        }
-
-        [Test]
         public void WriteIPEndPoint_WithEnoughCapacity_WritesSuccessfully()
         {
             // arrange
@@ -300,7 +197,7 @@ namespace GossipMesh.Core.Tests
             var expected = new byte[] { 192, 168, 0, 1, 255, 255 };
 
             Assert.AreEqual(buffer, expected);
-        }             
+        }
 
     }
 }

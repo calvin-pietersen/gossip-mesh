@@ -8,21 +8,11 @@ namespace GossipMesh.Core
     {
         public static IPAddress ReadIPAddress(this Stream stream)
         {
-            if (stream.Position > stream.Length - 4)
-            {
-                throw new EndOfStreamException("could not read ip address from stream with less than 4 bytes remaining");
-            }
-
             return new IPAddress(new byte[] { (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte(), (byte)stream.ReadByte() });
         }
 
         public static ushort ReadPort(this Stream stream)
         {
-            if (stream.Position > stream.Length - 2)
-            {
-                throw new EndOfStreamException("could not read port from stream with less than 2 bytes remaining");
-            }
-
             var bigByte = (byte)stream.ReadByte();
             var littleByte = (byte)stream.ReadByte();
 
@@ -33,21 +23,11 @@ namespace GossipMesh.Core
 
         public static IPEndPoint ReadIPEndPoint(this Stream stream)
         {
-            if (stream.Position > stream.Length - 6)
-            {
-                throw new EndOfStreamException("could not read ip endpoint from stream with less than 6 bytes remaining");
-            }
-
             return new IPEndPoint(stream.ReadIPAddress(), stream.ReadPort());
         }
 
         public static void WriteIPAddress(this Stream stream, IPAddress ipAddress)
         {
-            if (stream.Position > stream.Length - 4)
-            {
-                throw new EndOfStreamException("could not write ip address to stream with less than 4 bytes remaining");
-            }
-
             if (ipAddress == null)
             {
                 throw new ArgumentNullException(nameof(ipAddress));
@@ -58,22 +38,12 @@ namespace GossipMesh.Core
 
         public static void WritePort(this Stream stream, ushort port)
         {
-            if (stream.Position > stream.Length - 2)
-            {
-                throw new EndOfStreamException("could not port to stream with less than 2 bytes remaining");
-            }
-
             stream.WriteByte((byte)(port >> 8));
             stream.WriteByte((byte)port);
         }
 
         public static void WriteIPEndPoint(this Stream stream, IPEndPoint ipEndPoint)
         {
-            if (stream.Position > stream.Length - 6)
-            {
-                throw new EndOfStreamException("could not write ip endpoint to stream with less than 6 bytes remaining");
-            }
-
             if (ipEndPoint == null)
             {
                 throw new ArgumentNullException(nameof(ipEndPoint));
