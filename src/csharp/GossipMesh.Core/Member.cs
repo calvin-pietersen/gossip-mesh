@@ -72,6 +72,25 @@ namespace GossipMesh.Core
             Interlocked.Increment(ref _gossipCounter);
         }
 
+        public static Member ReadFrom(Stream stream)
+        {
+            var newMember = new Member
+            {
+                State = (MemberState)stream.ReadByte(),
+                IP = stream.ReadIPAddress(),
+                GossipPort = stream.ReadPort(),
+                Generation = (byte)stream.ReadByte(),
+            };
+
+            if (newMember.State == MemberState.Alive)
+            {
+                newMember.Service = (byte)stream.ReadByte();
+                newMember.ServicePort = stream.ReadPort();
+            }
+
+            return newMember;
+        }
+
         public override string ToString()
         {
             return string.Format("State:{0} IP:{1} GossipPort:{2} Generation:{3} Service:{4} ServicePort:{5}",

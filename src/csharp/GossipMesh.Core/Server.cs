@@ -317,56 +317,35 @@ namespace GossipMesh.Core
         {
             while (stream.Position < stream.Length)
             {
-                var memberState = (MemberState)stream.ReadByte();
-                var ip = stream.ReadIPAddress();
-                var gossipPort = stream.ReadPort();
-                var generation = (byte)stream.ReadByte();
-                byte service = memberState == MemberState.Alive ? (byte)stream.ReadByte() : (byte)0;
-                ushort servicePort = memberState == MemberState.Alive ? (ushort)stream.ReadPort() : (ushort)0;
-
-                var ipEndPoint = new IPEndPoint(ip, gossipPort);
+                var newMember = Member.ReadFrom(stream);
 
                 // we don't add ourselves to the member list
-                if (!EndPointsMatch(ipEndPoint, _self.GossipEndPoint))
+                if (!EndPointsMatch(newMember.GossipEndPoint, _self.GossipEndPoint))
                 {
                     lock (_memberLocker)
                     {
-                        Member member;
-                        if (_members.TryGetValue(ipEndPoint, out member) &&
-                            (member.IsLaterGeneration(generation) || 
-                            (member.Generation == generation && member.IsStateSuperseded(memberState))))
+                        if (_members.TryGetValue(newMember.GossipEndPoint, out var oldMember) &&
+                            (oldMember.IsLaterGeneration(newMember.Generation) || 
+                            (oldMember.Generation == newMember.Generation && oldMember.IsStateSuperseded(newMember.State))))
                         {
-                            RemoveAwaitingAck(member.GossipEndPoint); // stops dead claim escalation
-
-                            member.Update(memberState, generation, service, servicePort);
-                    
-                            _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
-                            
+                            RemoveAwaitingAck(newMember.GossipEndPoint); // stops dead claim escalation
+                            _members[newMember.GossipEndPoint] = newMember;
+                            _logger.LogInformation("Gossip.Mesh member state changed {member}", newMember);
                         }
 
-                        else if (member == null)
+                        else if (oldMember == null)
                         {
-                            member = new Member
-                            {
-                                State = memberState,
-                                IP = ip,
-                                GossipPort = gossipPort,
-                                Generation = generation,
-                                ServicePort = servicePort,
-                                Service = service
-                            };
-
-                            _members.Add(ipEndPoint, member);
-                            _logger.LogInformation("Gossip.Mesh member added {member}", member);
+                            _members.Add(newMember.GossipEndPoint, newMember);
+                            _logger.LogInformation("Gossip.Mesh member added {member}", newMember);
                         }
                     }
                 }
 
                 // handle any state claims about ourselves
-                else if (_self.IsLaterGeneration(generation) || 
-                        (memberState != MemberState.Alive && generation == _self.Generation))
+                else if (_self.IsLaterGeneration(newMember.Generation) || 
+                        (newMember.State != MemberState.Alive && newMember.Generation == _self.Generation))
                 {
-                    _self.Generation = (byte)(generation + 1);
+                    _self.Generation = (byte)(newMember.Generation + 1);
                 }
             }
         }
