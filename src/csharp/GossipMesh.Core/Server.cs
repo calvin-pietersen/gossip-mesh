@@ -75,9 +75,17 @@ namespace GossipMesh.Core
                 // ideally we want to bootstap over tcp but for now we will ping seeds and stop bootstrapping on the first ack
                 while (_bootstrapping)
                 {
-                    // ping seed
-                    var i = _rand.Next(0, _seedMembers.Length);
-                    await PingAsync(_udpServer, _seedMembers[i]);
+                    try
+                    {
+                        // ping seed
+                        var i = _rand.Next(0, _seedMembers.Length);
+                        await PingAsync(_udpServer, _seedMembers[i]);
+                    }
+
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
+                    }
 
                     await Task.Delay(_protocolPeriodMs).ConfigureAwait(false);
                 }
