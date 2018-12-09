@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
+import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,15 +31,18 @@ public class Gossip {
 
     public void start() throws IOException {
         this.socket = new DatagramSocket(port, address);
+        socket.setSoTimeout(500);
         this.listenerThread = new Thread(() -> {
             byte[] buffer = new byte[508];
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                     socket.receive(packet);
-                    assert(packet.getOffset() == 0);
+                    assert (packet.getOffset() == 0);
                     byte[] recvBuffer = Arrays.copyOf(packet.getData(), packet.getLength());
                     handleMessage((Inet4Address) packet.getAddress(), (short) packet.getPort(), recvBuffer);
+                } catch (SocketTimeoutException ex) {
+                    // do nothing
                 } catch (IOException ex) {
                     ex.printStackTrace();
                 }
@@ -59,16 +63,16 @@ public class Gossip {
     void handleMessage(Inet4Address from, short port, byte[] buffer) throws IOException {
         switch (buffer[0]) {
             case 0: // direct ack
-                directAck(from, port, buffer);
+                handleDirectAck(from, port, buffer);
                 break;
             case 1: // direct ping
-                directPing(from, port, buffer);
+                handleDirectPing(from, port, buffer);
                 break;
             case 2: // indirect ack
-                indirectAck(from, port, buffer);
+                handleIndirectAck(from, port, buffer);
                 break;
             case 3: // indirect ping
-                indirectPing(from, port, buffer);
+                handleIndirectPing(from, port, buffer);
                 break;
         }
     }
@@ -100,13 +104,31 @@ public class Gossip {
         buffer[index + 1] = (byte) bigPort;
     }
 
-    private void directAck(Inet4Address from, short port, byte[] buffer) throws IOException {
+    public void sendPing(Inet4Address destination, short port) throws IOException {
+        // now ack the ping
+        byte[] outBuffer = new byte[12];
+        outBuffer[0] = 1;
+        outBuffer[1] = 0;
+        writeAddress(outBuffer, 2, this.address);
+        writePort(outBuffer, 6, this.port);
+        outBuffer[8] = this.currentGeneration;
+        outBuffer[9] = this.serviceByte;
+        writePort(outBuffer, 10, this.servicePort);
+
+
+        DatagramPacket packet = new DatagramPacket(outBuffer, outBuffer.length);
+        packet.setAddress(destination);
+        packet.setPort(port);
+        socket.send(packet);
+    }
+
+    private void handleDirectAck(Inet4Address from, short port, byte[] buffer) throws IOException {
         // We don't do failure detection logic, so we don't actually need the address/port
         handleEvents(buffer, 1);
     }
 
-    private void directPing(Inet4Address from, short port, byte[] buffer) throws IOException {
-        directAck(from, port, buffer); // handling the events in a Ping is exactly the same as an Ack
+    private void handleDirectPing(Inet4Address from, short port, byte[] buffer) throws IOException {
+        handleEvents(buffer, 1);
 
         // now ack the ping
         byte[] outBuffer = new byte[12];
@@ -125,7 +147,7 @@ public class Gossip {
         socket.send(packet);
     }
 
-    private void indirectAck(Inet4Address from, short port, byte[] buffer) throws IOException {
+    private void handleIndirectAck(Inet4Address from, short port, byte[] buffer) throws IOException {
         // We don't do failure detection logic, so we don't actually need the source/destination address/port
         handleEvents(buffer, 13);
 
@@ -138,7 +160,7 @@ public class Gossip {
         socket.send(packet);
     }
 
-    private void indirectPing(Inet4Address from, short port, byte[] buffer) throws IOException {
+    private void handleIndirectPing(Inet4Address from, short port, byte[] buffer) throws IOException {
         handleEvents(buffer, 13);
 
         Inet4Address destinationAddress = parseAddress(buffer, 1);
@@ -313,6 +335,7 @@ public class Gossip {
     public static void main(String[] args) throws Exception {
         Gossip gossip = new Gossip((Inet4Address) Inet4Address.getByName("192.168.10.199"), (short) 5001, (byte) 1, (short) 8080);
         gossip.start();
+        gossip.sendPing((Inet4Address) Inet4Address.getByName("192.168.10.199"), (short) 5000);
         try {
             Thread.sleep(1000000);
         } finally {
