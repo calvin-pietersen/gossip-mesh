@@ -128,30 +128,51 @@ public class Gossip {
     private void indirectAck(Inet4Address from, short port, byte[] buffer) throws IOException {
         // We don't do failure detection logic, so we don't actually need the source/destination address/port
         handleEvents(buffer, 13);
+
+        Inet4Address destinationAddress = parseAddress(buffer, 1);
+        short destinationPort = parsePort(buffer, 5);
+
+        DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+        packet.setAddress(destinationAddress);
+        packet.setPort(destinationPort);
+        socket.send(packet);
     }
 
     private void indirectPing(Inet4Address from, short port, byte[] buffer) throws IOException {
-        indirectAck(from, port, buffer);
+        handleEvents(buffer, 13);
 
-        byte[] outBuffer = new byte[24];
-        outBuffer[0] = 2;
+        Inet4Address destinationAddress = parseAddress(buffer, 1);
+        short destinationPort = parsePort(buffer, 5);
 
-        writeAddress(outBuffer, 1, parseAddress(buffer, 7));
-        writePort(outBuffer, 5, parsePort(buffer, 11));
-        writeAddress(outBuffer, 7, parseAddress(buffer, 1));
-        writePort(outBuffer, 11, parsePort(buffer, 5));
+        if (Objects.equals(this.address, destinationAddress) && Objects.equals(this.port, destinationPort)) {
+            byte[] outBuffer = new byte[24];
+            outBuffer[0] = 2;
 
-        outBuffer[13] = 0;
-        writeAddress(outBuffer, 14, this.address);
-        writePort(outBuffer, 18, this.port);
-        outBuffer[20] = this.currentGeneration;
-        outBuffer[21] = this.serviceByte;
-        writePort(outBuffer, 22, this.servicePort);
+            Inet4Address sourceAddress = parseAddress(buffer, 7);
+            short sourcePort = parsePort(buffer, 11);
 
-        DatagramPacket packet = new DatagramPacket(outBuffer, outBuffer.length);
-        packet.setAddress(from);
-        packet.setPort(port);
-        socket.send(packet);
+            writeAddress(outBuffer, 1, sourceAddress);
+            writePort(outBuffer, 5, sourcePort);
+            writeAddress(outBuffer, 7, destinationAddress);
+            writePort(outBuffer, 11, destinationPort);
+
+            outBuffer[13] = 0;
+            writeAddress(outBuffer, 14, this.address);
+            writePort(outBuffer, 18, this.port);
+            outBuffer[20] = this.currentGeneration;
+            outBuffer[21] = this.serviceByte;
+            writePort(outBuffer, 22, this.servicePort);
+
+            DatagramPacket packet = new DatagramPacket(outBuffer, outBuffer.length);
+            packet.setAddress(from);
+            packet.setPort(port);
+            socket.send(packet);
+        } else {
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+            packet.setAddress(destinationAddress);
+            packet.setPort(destinationPort);
+            socket.send(packet);
+        }
     }
 
     private void handleEvents(byte[] buffer, int index) throws IOException {
