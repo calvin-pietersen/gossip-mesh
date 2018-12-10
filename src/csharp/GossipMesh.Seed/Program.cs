@@ -21,6 +21,8 @@ namespace GossipMesh.Seed
             var logger = loggerFactory
                 .CreateLogger<Program>();
 
+            var LoadBalancer = new LoadBalancer();
+
             var options = new ServerOptions
             {
                 MaxUdpPacketBytes = 508,
@@ -31,7 +33,8 @@ namespace GossipMesh.Seed
                 ListenAddress = listenEndPoint.Address,
                 Service = (byte)1,
                 ServicePort = (ushort)8080,
-                SeedMembers = seeds
+                SeedMembers = seeds,
+                StateListener = LoadBalancer
             };
 
             var server = new GossipMesh.Core.Server(options, logger);
@@ -39,7 +42,12 @@ namespace GossipMesh.Seed
 
             while (true)
             {
-                await Task.Delay(10000).ConfigureAwait(false);
+                await Task.Delay(1000).ConfigureAwait(false);
+                try {
+                    Console.Out.WriteLine(LoadBalancer.GetEndpoint(1));
+                } catch (Exception ex) {
+                    Console.Out.WriteLine(ex.Message);
+                }
             }
         }
 

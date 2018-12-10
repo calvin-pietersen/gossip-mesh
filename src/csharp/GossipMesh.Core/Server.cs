@@ -25,6 +25,7 @@ namespace GossipMesh.Core
         private DateTime _lastProtocolPeriod = DateTime.Now;
         private readonly Random _rand = new Random();
         private UdpClient _udpServer;
+        private IStateListener _listener;
 
         private readonly ILogger _logger;
 
@@ -36,6 +37,7 @@ namespace GossipMesh.Core
             _numberOfIndirectEndpoints = options.NumberOfIndirectEndpoints;
             _seedMembers = options.SeedMembers;
             _bootstrapping = options.SeedMembers != null && options.SeedMembers.Length > 0;
+            _listener = options.StateListener;
 
             _self = new Member
             {
@@ -331,12 +333,14 @@ namespace GossipMesh.Core
                             RemoveAwaitingAck(newMember.GossipEndPoint); // stops dead claim escalation
                             _members[newMember.GossipEndPoint] = newMember;
                             _logger.LogInformation("Gossip.Mesh member state changed {member}", newMember);
+                            _listener.NodeStateUpdated(newMember);
                         }
 
                         else if (oldMember == null)
                         {
                             _members.Add(newMember.GossipEndPoint, newMember);
                             _logger.LogInformation("Gossip.Mesh member added {member}", newMember);
+                            _listener.NodeStateUpdated(newMember);
                         }
                     }
                 }
@@ -425,6 +429,7 @@ namespace GossipMesh.Core
                 {
                     member.Update(MemberState.Suspicious);
                     _logger.LogInformation("Gossip.Mesh suspicious member {member}", member);
+                    _listener.NodeStateUpdated(member);
                 }
             }
         }
@@ -445,6 +450,7 @@ namespace GossipMesh.Core
                                 member.Update(MemberState.Dead);
                                 _awaitingAcks.Remove(awaitingAck.Key);
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
+                                _listener.NodeStateUpdated(member);
                             }
                         }
                     }

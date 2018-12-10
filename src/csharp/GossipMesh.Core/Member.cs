@@ -22,6 +22,13 @@ namespace GossipMesh.Core
                 return new IPEndPoint(IP, GossipPort);
             }
         }
+        public IPEndPoint ServiceEndPoint
+        {
+            get
+            {
+                return new IPEndPoint(IP, ServicePort);
+            }
+        }
 
         public void Update(MemberState state, byte generation, byte service = 0, ushort servicePort = 0)
         {
