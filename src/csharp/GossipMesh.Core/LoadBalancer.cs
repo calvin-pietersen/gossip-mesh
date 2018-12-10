@@ -12,7 +12,8 @@ namespace GossipMesh.Core
 
         public void NodeStateUpdated(Member member) {
             lock (services) {
-                services.RemoveAll(oldMember => oldMember.GossipEndPoint == member.GossipEndPoint);
+                services.RemoveAll(oldMember =>
+                    oldMember.IP == member.IP && oldMember.GossipPort == member.GossipPort);
                 if (member.State == MemberState.Alive || member.State == MemberState.Suspicious) {
                     services.Add(member);
                 }
