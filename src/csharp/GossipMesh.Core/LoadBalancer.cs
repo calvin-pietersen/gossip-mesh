@@ -10,7 +10,7 @@ namespace GossipMesh.Core
         List<Member> services = new List<Member>();
         Random random = new Random();
 
-        public void NodeStateUpdated(Member member) {
+        public void MemberStateUpdated(Member member) {
             lock (services) {
                 services.RemoveAll(oldMember =>
                     oldMember.IP == member.IP && oldMember.GossipPort == member.GossipPort);

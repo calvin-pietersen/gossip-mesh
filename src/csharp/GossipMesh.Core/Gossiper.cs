@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace GossipMesh.Core
 {
-    public class Server : IDisposable
+    public class Gossiper : IDisposable
     {
         private readonly Member _self;
         private readonly int _maxUdpPacketBytes;
@@ -29,7 +29,7 @@ namespace GossipMesh.Core
 
         private readonly ILogger _logger;
 
-        public Server(ServerOptions options, ILogger logger)
+        public Gossiper(GossiperOptions options, ILogger logger)
         {
             _maxUdpPacketBytes = options.MaxUdpPacketBytes;
             _protocolPeriodMs = options.ProtocolPeriodMilliseconds;
@@ -54,7 +54,7 @@ namespace GossipMesh.Core
 
         public void Start()
         {
-            _logger.LogInformation("Starting Gossip.Mesh server on {GossipEndPoint}", _self.GossipEndPoint);
+            _logger.LogInformation("Starting Gossip.Mesh Gossiper on {GossipEndPoint}", _self.GossipEndPoint);
 
             _udpServer = CreateUdpClient(_self.GossipEndPoint);
 
@@ -65,7 +65,7 @@ namespace GossipMesh.Core
             Task.Run(async () => await Listener().ConfigureAwait(false)).ConfigureAwait(false);
 
             // gossip
-            Task.Run(async () => await Gossiper().ConfigureAwait(false)).ConfigureAwait(false);
+            Task.Run(async () => await Gossip().ConfigureAwait(false)).ConfigureAwait(false);
         }
 
         private async Task Bootstraper()
@@ -148,7 +148,7 @@ namespace GossipMesh.Core
             }
         }
 
-        private async Task Gossiper()
+        private async Task Gossip()
         {
             while (true)
             {
@@ -333,14 +333,14 @@ namespace GossipMesh.Core
                             RemoveAwaitingAck(newMember.GossipEndPoint); // stops dead claim escalation
                             _members[newMember.GossipEndPoint] = newMember;
                             _logger.LogInformation("Gossip.Mesh member state changed {member}", newMember);
-                            _listener.NodeStateUpdated(newMember);
+                            _listener.MemberStateUpdated(newMember);
                         }
 
                         else if (oldMember == null)
                         {
                             _members.Add(newMember.GossipEndPoint, newMember);
                             _logger.LogInformation("Gossip.Mesh member added {member}", newMember);
-                            _listener.NodeStateUpdated(newMember);
+                            _listener.MemberStateUpdated(newMember);
                         }
                     }
                 }
@@ -379,7 +379,7 @@ namespace GossipMesh.Core
             var udpClient = new UdpClient();
             try
             {
-                udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, false);
+                udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 udpClient.Client.Bind(listenEndPoint);
                 udpClient.DontFragment = true;
             }
@@ -429,7 +429,7 @@ namespace GossipMesh.Core
                 {
                     member.Update(MemberState.Suspicious);
                     _logger.LogInformation("Gossip.Mesh suspicious member {member}", member);
-                    _listener.NodeStateUpdated(member);
+                    _listener.MemberStateUpdated(member);
                 }
             }
         }
@@ -450,7 +450,7 @@ namespace GossipMesh.Core
                                 member.Update(MemberState.Dead);
                                 _awaitingAcks.Remove(awaitingAck.Key);
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
-                                _listener.NodeStateUpdated(member);
+                                _listener.MemberStateUpdated(member);
                             }
                         }
                     }

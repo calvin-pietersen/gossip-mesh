@@ -23,7 +23,7 @@ namespace GossipMesh.Seed
 
             var LoadBalancer = new LoadBalancer();
 
-            var options = new ServerOptions
+            var options = new GossiperOptions
             {
                 MaxUdpPacketBytes = 508,
                 ProtocolPeriodMilliseconds = 200,
@@ -37,8 +37,8 @@ namespace GossipMesh.Seed
                 StateListener = LoadBalancer
             };
 
-            var server = new GossipMesh.Core.Server(options, logger);
-            server.Start();
+            var gossiper = new GossipMesh.Core.Gossiper(options, logger);
+            gossiper.Start();
 
             while (true)
             {

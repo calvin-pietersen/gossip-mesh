@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace GossipMesh.Core
 {
-    public class ServerOptions
+    public class GossiperOptions
     {
         public int MaxUdpPacketBytes {get; set; }
         public int ProtocolPeriodMilliseconds { get; set; }
