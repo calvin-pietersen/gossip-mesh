@@ -108,7 +108,7 @@ namespace GossipMesh.Core
                     var request = await _udpServer.ReceiveAsync().ConfigureAwait(false);
                     using (var stream = new MemoryStream(request.Buffer, false))
                     {
-                        var messageType = (MessageType)stream.ReadByte();
+                        var messageType = stream.ReadMessageType();
                         _logger.LogDebug("Gossip.Mesh recieved {MessageType} from {RemoteEndPoint}", messageType, request.RemoteEndPoint);
 
                         // finish bootrapping
@@ -359,7 +359,6 @@ namespace GossipMesh.Core
             // always prioritize ourselves
             _self.WriteTo(stream);
 
-            // TODO - don't just iterate over the members, do the least gossiped members.... dah
             if (members != null)
             {
                 var i = 0;
