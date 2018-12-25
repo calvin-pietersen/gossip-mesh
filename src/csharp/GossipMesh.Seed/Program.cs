@@ -37,7 +37,7 @@ namespace GossipMesh.Seed
                 StateListener = LoadBalancer
             };
 
-            var gossiper = new GossipMesh.Core.Gossiper(options, logger);
+            var gossiper = new Gossiper(options, logger);
             gossiper.Start();
 
             while (true)

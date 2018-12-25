@@ -83,7 +83,7 @@ namespace GossipMesh.Core
         {
             var newMember = new Member
             {
-                State = stream.ReadMessageType(),
+                State = stream.ReadMemberState(),
                 IP = stream.ReadIPAddress(),
                 GossipPort = stream.ReadPort(),
                 Generation = (byte)stream.ReadByte(),

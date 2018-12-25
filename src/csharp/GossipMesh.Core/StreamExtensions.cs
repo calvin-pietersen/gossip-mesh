@@ -6,9 +6,14 @@ namespace GossipMesh.Core
 {
     public static class StreamExtensions
     {
-        public static void ReadMessageType(this Stream stream)
+        public static MessageType ReadMessageType(this Stream stream)
         {
             return (MessageType)stream.ReadByte();
+        }
+
+        public static MemberState ReadMemberState(this Stream stream)
+        {
+            return (MemberState)stream.ReadByte();
         }
 
         public static IPAddress ReadIPAddress(this Stream stream)
