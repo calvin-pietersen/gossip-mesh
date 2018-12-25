@@ -7,7 +7,7 @@ discovery.
 ## Discovery and membership
 
 Members of the cluster communicate to each other by "gossiping"
-information to each other. Communication about the current state of
+information. Communication about the current state of
 nodes is communicated using events. There are four event types:
 
  * _alive_: the node is alive and can be communicated with
@@ -50,8 +50,8 @@ _node generation_ associated with a given node can only ever be
 incremented by _that node_. Thus, only node `A` may send an event with
 a generation number different to the events it has received about `A`.
 `A` must increment its generation number to refute events from other
-nodes about itself. If `A` receives a event stating that "`A` is
-suspicious" then it should immediately begin disseminating a event of
+nodes about itself. If `A` receives an event stating that "`A` is
+suspicious" then it should immediately begin disseminating an event of
 "`A` is alive", with a higher generation number than the event it
 received.
 
