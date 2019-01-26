@@ -20,8 +20,10 @@ namespace GossipMesh.Core
         private volatile bool _bootstrapping;
         private readonly object _memberLocker = new Object();
         private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
-        private readonly object _awaitingAcksLock = new Object();
+        private readonly object _awaitingAcksLocker = new Object();
         private volatile Dictionary<IPEndPoint, DateTime> _awaitingAcks = new Dictionary<IPEndPoint, DateTime>();
+        private readonly object _pruneMembersLocker = new Object();
+        private volatile Dictionary<IPEndPoint, DateTime> _pruneMembers = new Dictionary<IPEndPoint, DateTime>();
         private DateTime _lastProtocolPeriod = DateTime.Now;
         private readonly Random _rand = new Random();
         private UdpClient _udpServer;
@@ -42,7 +44,7 @@ namespace GossipMesh.Core
             _self = new Member
             {
                 State = MemberState.Alive,
-                IP = options.ListenAddress,
+                IP = options.MemberIP,
                 GossipPort = options.ListenPort,
                 Generation = 1,
                 Service = options.Service,
@@ -333,16 +335,22 @@ namespace GossipMesh.Core
                             RemoveAwaitingAck(newMember.GossipEndPoint); // stops dead claim escalation
                             _members[newMember.GossipEndPoint] = newMember;
                             _logger.LogInformation("Gossip.Mesh member state changed {member}", newMember);
-                            _listener.MemberStateUpdated(newMember);
                         }
 
                         else if (oldMember == null)
                         {
                             _members.Add(newMember.GossipEndPoint, newMember);
                             _logger.LogInformation("Gossip.Mesh member added {member}", newMember);
-                            _listener.MemberStateUpdated(newMember);
+
                         }
                     }
+                    
+                    if (newMember.State == MemberState.Dead || newMember.State == MemberState.Left)
+                    {
+                        AddPruneMember(newMember.GossipEndPoint);
+                    }
+
+                    _listener.MemberStateUpdated(newMember);
                 }
 
                 // handle any state claims about ourselves
@@ -393,12 +401,16 @@ namespace GossipMesh.Core
 
         private Member[] GetMembers()
         {
-            lock (_memberLocker)
+            lock (_pruneMembersLocker)
             {
-                return _members
-                    .Values
-                    .OrderBy(m => m.GossipCounter)
-                    .ToArray();
+                lock (_memberLocker)
+                {
+                    return _members
+                        .Values
+                        .OrderBy(m => m.GossipCounter)
+                        .Where(m => !_pruneMembers.ContainsKey(m.GossipEndPoint))
+                        .ToArray();
+                }
             }
         }
 
@@ -435,7 +447,7 @@ namespace GossipMesh.Core
 
         private void HandleDeadMembers()
         {
-            lock (_awaitingAcksLock)
+            lock (_awaitingAcksLocker)
             {
                 foreach (var awaitingAck in _awaitingAcks.ToArray())
                 {
@@ -444,23 +456,44 @@ namespace GossipMesh.Core
                     {
                         lock (_memberLocker)
                         {
-                            if (_members.TryGetValue(awaitingAck.Key, out var member) && member.State == MemberState.Alive || member.State == MemberState.Suspicious)
+                            if (_members.TryGetValue(awaitingAck.Key, out var member) && (member.State == MemberState.Alive || member.State == MemberState.Suspicious))
                             {
                                 member.Update(MemberState.Dead);
-                                _awaitingAcks.Remove(awaitingAck.Key);
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
                                 _listener.MemberStateUpdated(member);
                             }
                         }
+
+                        AddPruneMember(awaitingAck.Key);
+                        _awaitingAcks.Remove(awaitingAck.Key);
                     }
-                    // prune dead members
+                }
+            }
+
+            lock (_pruneMembersLocker)
+            {
+                foreach (var pruneMember in _pruneMembers.ToArray())
+                {
+                    if (pruneMember.Value < DateTime.Now)
+                    {
+                        lock (_memberLocker)
+                        {
+                            if (_members.TryGetValue(pruneMember.Key, out var member) && (member.State == MemberState.Dead || member.State == MemberState.Left))
+                            {
+                                _members.Remove(pruneMember.Key);
+                                _logger.LogInformation("Gossip.Mesh pruned member {member}", member);
+                            }
+                        }
+
+                        _pruneMembers.Remove(pruneMember.Key);
+                    }
                 }
             }
         }
 
         private void AddAwaitingAck(IPEndPoint gossipEndPoint)
         {
-            lock (_awaitingAcksLock)
+            lock (_awaitingAcksLocker)
             {
                 if (!_awaitingAcks.ContainsKey(gossipEndPoint))
                 {
@@ -469,10 +502,21 @@ namespace GossipMesh.Core
             }
         }
 
+        private void AddPruneMember(IPEndPoint gossipEndPoint)
+        {
+            lock (_pruneMembersLocker)
+            {
+                if (!_pruneMembers.ContainsKey(gossipEndPoint))
+                {
+                    _pruneMembers.Add(gossipEndPoint, DateTime.Now.AddMilliseconds(_protocolPeriodMs * 60));
+                }
+            }
+        }
+
         private bool CheckWasNotAcked(IPEndPoint gossipEndPoint)
         {
             var wasNotAcked = false;
-            lock (_awaitingAcksLock)
+            lock (_awaitingAcksLocker)
             {
                 wasNotAcked = _awaitingAcks.ContainsKey(gossipEndPoint);
             }
@@ -482,7 +526,7 @@ namespace GossipMesh.Core
 
         private void RemoveAwaitingAck(IPEndPoint gossipEndPoint)
         {
-            lock (_awaitingAcksLock)
+            lock (_awaitingAcksLocker)
             {
                 if (_awaitingAcks.ContainsKey(gossipEndPoint))
                 {

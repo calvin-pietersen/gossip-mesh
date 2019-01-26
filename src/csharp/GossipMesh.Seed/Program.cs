@@ -30,7 +30,7 @@ namespace GossipMesh.Seed
                 AckTimeoutMilliseconds = 80,
                 NumberOfIndirectEndpoints = 2,
                 ListenPort = (ushort)listenEndPoint.Port,
-                ListenAddress = listenEndPoint.Address,
+                MemberIP = listenEndPoint.Address,
                 Service = (byte)1,
                 ServicePort = (ushort)8080,
                 SeedMembers = seeds,
@@ -43,11 +43,6 @@ namespace GossipMesh.Seed
             while (true)
             {
                 await Task.Delay(1000).ConfigureAwait(false);
-                try {
-                    Console.Out.WriteLine(LoadBalancer.GetEndpoint(1));
-                } catch (Exception ex) {
-                    Console.Out.WriteLine(ex.Message);
-                }
             }
         }
 

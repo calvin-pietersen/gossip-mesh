@@ -32,9 +32,7 @@ namespace GossipMesh.Seed
 
             public bool IsEnabled(LogLevel logLevel)
             {
-                if (logLevel == LogLevel.Debug) return false;
-
-                return true;
+                return logLevel != LogLevel.Debug;
             }
 
             public IDisposable BeginScope<TState>(TState state)
