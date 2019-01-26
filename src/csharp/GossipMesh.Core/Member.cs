@@ -59,9 +59,7 @@ namespace GossipMesh.Core
         public bool IsStateSuperseded(MemberState newState)
         {
             // alive < suspicious < dead < left
-            return (State == MemberState.Alive && newState != MemberState.Alive) ||
-                (State == MemberState.Suspicious && (newState == MemberState.Dead || newState == MemberState.Left)) ||
-                State == MemberState.Dead && newState == MemberState.Left;
+            return State < newState;
         }
 
         public void WriteTo(Stream stream)
