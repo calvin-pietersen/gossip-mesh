@@ -21,8 +21,6 @@ namespace GossipMesh.Seed
             var logger = loggerFactory
                 .CreateLogger<Program>();
 
-            var LoadBalancer = new LoadBalancer();
-
             var options = new GossiperOptions
             {
                 MaxUdpPacketBytes = 508,
@@ -34,7 +32,7 @@ namespace GossipMesh.Seed
                 Service = (byte)1,
                 ServicePort = (ushort)8080,
                 SeedMembers = seeds,
-                StateListener = LoadBalancer
+                StateListeners = new IStateListener[] { }
             };
 
             var gossiper = new Gossiper(options, logger);

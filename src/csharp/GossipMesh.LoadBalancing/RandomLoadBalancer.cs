@@ -2,10 +2,11 @@ using System;
 using System.Net;
 using System.Linq;
 using System.Collections.Generic;
+using GossipMesh.Core;
 
-namespace GossipMesh.Core
+namespace GossipMesh.LoadBalancing
 {
-    public class LoadBalancer : IStateListener
+    public class RandomLoadBalancer : ILoadBalancer, IStateListener
     {
         List<Member> services = new List<Member>();
         Random random = new Random();

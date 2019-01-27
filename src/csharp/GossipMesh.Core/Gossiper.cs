@@ -23,13 +23,11 @@ namespace GossipMesh.Core
         private readonly Random _rand = new Random();
         private UdpClient _udpClient;
 
-        private IStateListener _listener;
         private readonly ILogger _logger;
 
         public Gossiper(GossiperOptions options, ILogger logger)
         {
             _options = options;
-            _listener = options.StateListener;
 
             _self = new Member
             {
@@ -319,7 +317,7 @@ namespace GossipMesh.Core
                         AddPruneMember(newMember.GossipEndPoint);
                     }
 
-                    _listener.MemberStateUpdated(newMember);
+                    PushToListeners(newMember);
                 }
 
                 // handle any state claims about ourselves
@@ -417,7 +415,7 @@ namespace GossipMesh.Core
                 {
                     member.Update(MemberState.Suspicious);
                     _logger.LogInformation("Gossip.Mesh suspicious member {member}", member);
-                    _listener.MemberStateUpdated(member);
+                    PushToListeners(member);
                 }
             }
         }
@@ -437,7 +435,7 @@ namespace GossipMesh.Core
                             {
                                 member.Update(MemberState.Dead);
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
-                                _listener.MemberStateUpdated(member);
+                                PushToListeners(member);
                             }
                         }
 
@@ -522,6 +520,17 @@ namespace GossipMesh.Core
             var syncTime = _options.ProtocolPeriodMilliseconds - (int)(DateTime.Now - _lastProtocolPeriod).TotalMilliseconds;
             await Task.Delay(syncTime).ConfigureAwait(false);
             _lastProtocolPeriod = DateTime.Now;
+        }
+
+        private void PushToListeners(Member member)
+        {
+            Task.Run(() =>
+            {
+                foreach (var listener in _options.StateListeners)
+                {
+                    listener.MemberStateUpdated(member);
+                }
+            });
         }
 
         public void Dispose()
