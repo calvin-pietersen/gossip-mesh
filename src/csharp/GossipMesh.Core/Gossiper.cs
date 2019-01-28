@@ -302,6 +302,8 @@ namespace GossipMesh.Core
                             RemoveAwaitingAck(newMember.GossipEndPoint); // stops dead claim escalation
                             _members[newMember.GossipEndPoint] = newMember;
                             _logger.LogInformation("Gossip.Mesh member state changed {member}", newMember);
+
+                            PushToListeners(newMember);
                         }
 
                         else if (oldMember == null)
@@ -309,6 +311,7 @@ namespace GossipMesh.Core
                             _members.Add(newMember.GossipEndPoint, newMember);
                             _logger.LogInformation("Gossip.Mesh member added {member}", newMember);
 
+                            PushToListeners(newMember);
                         }
                     }
                     
@@ -316,8 +319,6 @@ namespace GossipMesh.Core
                     {
                         AddPruneMember(newMember.GossipEndPoint);
                     }
-
-                    PushToListeners(newMember);
                 }
 
                 // handle any state claims about ourselves

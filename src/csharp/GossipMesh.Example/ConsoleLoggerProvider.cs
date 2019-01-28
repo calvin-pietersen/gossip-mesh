@@ -1,6 +1,6 @@
 using System;
 using Microsoft.Extensions.Logging;
-namespace GossipMesh.Seed
+namespace GossipMesh.Example
 {
     public class ConsoleLoggerProvider : ILoggerProvider
     {

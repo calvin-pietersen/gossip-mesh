@@ -1,12 +1,18 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
   <PropertyGroup>
-    <LangVersion>7.1</LangVersion>
-    <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.1</TargetFramework>
   </PropertyGroup>
-  <ItemGroup>
-      <ProjectReference Include="..\GossipMesh.Core\GossipMesh.Core.csproj" />
 
-      <PackageReference Include="Microsoft.Extensions.Logging" Version="2.1.1" />
+  <ItemGroup>
+    <Folder Include="wwwroot\" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" />
+
+    <ProjectReference Include="..\GossipMesh.Core\GossipMesh.Core.csproj" />
+  </ItemGroup>
+
 </Project>
