@@ -30,7 +30,7 @@ namespace GossipMesh.Core
             }
         }
 
-        public void Update(MemberState state, byte generation, byte service = 0, ushort servicePort = 0)
+        public void Update(MemberState state, byte generation, byte service, ushort servicePort)
         {
             State = state;
             Generation = generation;

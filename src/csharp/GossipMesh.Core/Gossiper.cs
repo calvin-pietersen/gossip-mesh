@@ -121,7 +121,7 @@ namespace GossipMesh.Core
                         // update members
                         UpdateMembers(stream);
 
-                        var members = GetMembers();
+                        var members = GetMembers(request.RemoteEndPoint);
                         await RequestHandler(request, messageType, sourceGossipEndPoint, destinationGossipEndPoint, members).ConfigureAwait(false);
                     }
                 }
@@ -300,10 +300,10 @@ namespace GossipMesh.Core
                             (oldMember.Generation == newMember.Generation && oldMember.IsStateSuperseded(newMember.State))))
                         {
                             RemoveAwaitingAck(newMember.GossipEndPoint); // stops dead claim escalation
-                            _members[newMember.GossipEndPoint] = newMember;
-                            _logger.LogInformation("Gossip.Mesh member state changed {member}", newMember);
+                            _members[newMember.GossipEndPoint].Update(newMember.State, newMember.Generation, newMember.Service, newMember.ServicePort);
+                            _logger.LogInformation("Gossip.Mesh member state changed {member}", _members[newMember.GossipEndPoint]);
 
-                            PushToListeners(newMember);
+                            PushToListeners(_members[newMember.GossipEndPoint]);
                         }
 
                         else if (oldMember == null)
@@ -367,7 +367,7 @@ namespace GossipMesh.Core
             return udpClient;
         }
 
-        private Member[] GetMembers()
+        private Member[] GetMembers(IPEndPoint destinationGossipEndPoint = null)
         {
             lock (_pruneMembersLocker)
             {
@@ -376,7 +376,7 @@ namespace GossipMesh.Core
                     return _members
                         .Values
                         .OrderBy(m => m.GossipCounter)
-                        .Where(m => !_pruneMembers.ContainsKey(m.GossipEndPoint))
+                        .Where(m => !_pruneMembers.ContainsKey(m.GossipEndPoint) || EndPointsMatch(destinationGossipEndPoint, m.GossipEndPoint))
                         .ToArray();
                 }
             }
@@ -513,7 +513,7 @@ namespace GossipMesh.Core
 
         private bool EndPointsMatch(IPEndPoint ipEndPointA, IPEndPoint ipEndPointB)
         {
-            return ipEndPointA.Port == ipEndPointB.Port && ipEndPointA.Address.Equals(ipEndPointB.Address);
+            return ipEndPointA?.Port == ipEndPointB?.Port && ipEndPointA.Address.Equals(ipEndPointB.Address);
         }
 
         private async Task WaitForProtocolPeriod()
