@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Serialization;
 
 namespace GossipMesh.Seed
 {
@@ -19,8 +20,13 @@ namespace GossipMesh.Seed
     {
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddSignalR();
-                //.AddMessagePackProtocol();
+            services.AddSignalR(options => {
+                options.EnableDetailedErrors = true;
+            })
+                .AddJsonProtocol(options => {
+                    options.PayloadSerializerSettings.ContractResolver = 
+                    new DefaultContractResolver();
+                });
 
             services.AddSingleton<IStateListener, MembersListener>();
         }

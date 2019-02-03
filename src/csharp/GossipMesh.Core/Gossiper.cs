@@ -28,18 +28,9 @@ namespace GossipMesh.Core
         public Gossiper(GossiperOptions options, ILogger logger)
         {
             _options = options;
-
-            _self = new Member
-            {
-                State = MemberState.Alive,
-                IP = options.MemberIP,
-                GossipPort = options.ListenPort,
-                Generation = 1,
-                Service = options.Service,
-                ServicePort = options.ServicePort
-            };
-
             _logger = logger;
+
+            _self = new Member(MemberState.Alive, options.MemberIP, options.ListenPort, 1, options.Service, options.ServicePort);
         }
 
         public void Start()

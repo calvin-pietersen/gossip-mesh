@@ -19,7 +19,7 @@ namespace GossipMesh.Seed.Listeners
         }
         public void MemberStateUpdated(Member member)
         {
-            _membersHubContext.Clients.All.SendAsync("MemberStateUpdatedMessage", member.ToString()).ConfigureAwait(false);
+            _membersHubContext.Clients.All.SendAsync("MemberStateUpdatedMessage", member).ConfigureAwait(false);
         }
     }
 }

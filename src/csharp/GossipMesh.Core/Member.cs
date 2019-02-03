@@ -8,29 +8,37 @@ namespace GossipMesh.Core
     {
         private long _gossipCounter = 0;
 
-        public MemberState State { get; set; }
-        public IPAddress IP { get; set; }
-        public ushort GossipPort { get; set; }
-        public byte Generation { get; set; }
-        public byte Service { get; set; }
-        public ushort ServicePort { get; set; }
-        public long GossipCounter { get { return Interlocked.Read(ref _gossipCounter); } }
-        public IPEndPoint GossipEndPoint
+        public MemberState State { get; private set; }
+        public IPAddress IP { get; private set; }
+        public ushort GossipPort { get; private set; }
+        public byte Generation { get; internal set; }
+        public byte Service { get; private set; }
+        public ushort ServicePort { get; private set; }
+        internal long GossipCounter { get { return Interlocked.Read(ref _gossipCounter); } }
+
+        private Member()
+        {
+        }
+
+        public Member(MemberState state, IPAddress ip, ushort gossipPort, byte generation, byte service, ushort servicePort)
+        {
+            State = state;
+            IP = ip;
+            GossipPort = gossipPort;
+            Generation = generation;
+            Service = service;
+            ServicePort = servicePort;
+        }
+
+        internal IPEndPoint GossipEndPoint
         {
             get
             {
                 return new IPEndPoint(IP, GossipPort);
             }
         }
-        public IPEndPoint ServiceEndPoint
-        {
-            get
-            {
-                return new IPEndPoint(IP, ServicePort);
-            }
-        }
 
-        public void Update(MemberState state, byte generation, byte service, ushort servicePort)
+        internal void Update(MemberState state, byte generation, byte service, ushort servicePort)
         {
             State = state;
             Generation = generation;
@@ -44,25 +52,25 @@ namespace GossipMesh.Core
             Interlocked.Exchange(ref _gossipCounter, 0);
         }
 
-        public void Update(MemberState state)
+        internal void Update(MemberState state)
         {
             State = state;
             Interlocked.Exchange(ref _gossipCounter, 0);
         }
 
-        public bool IsLaterGeneration(byte newGeneration)
+        internal bool IsLaterGeneration(byte newGeneration)
         {
             return ((0 < (newGeneration - Generation)) && ((newGeneration - Generation) < 191))
                  || ((newGeneration - Generation) <= -191);
         }
 
-        public bool IsStateSuperseded(MemberState newState)
+        internal bool IsStateSuperseded(MemberState newState)
         {
             // alive < suspicious < dead < left
             return State < newState;
         }
 
-        public void WriteTo(Stream stream)
+        internal void WriteTo(Stream stream)
         {
             stream.WriteByte((byte)State);
             stream.WriteIPEndPoint(GossipEndPoint);
@@ -77,7 +85,7 @@ namespace GossipMesh.Core
             Interlocked.Increment(ref _gossipCounter);
         }
 
-        public static Member ReadFrom(Stream stream)
+        internal static Member ReadFrom(Stream stream)
         {
             var newMember = new Member
             {
