@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace GossipMesh.Seed.Listeners
 {
-    public class MembersListener : IStateListener
+    public class MembersListener : IMemberEventListener
     {
         private readonly IHubContext<MembersHub> _membersHubContext;
 
@@ -17,9 +17,9 @@ namespace GossipMesh.Seed.Listeners
         {
             _membersHubContext = membersHubContext;
         }
-        public void MemberStateUpdated(Member member)
+        public void MemberEventCallback(MemberEvent memberEvent)
         {
-            _membersHubContext.Clients.All.SendAsync("MemberStateUpdatedMessage", member).ConfigureAwait(false);
+            _membersHubContext.Clients.All.SendAsync("MemberStateUpdatedMessage", memberEvent.ToString()).ConfigureAwait(false);
         }
     }
 }

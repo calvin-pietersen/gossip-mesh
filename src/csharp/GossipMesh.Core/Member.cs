@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Net;
 using System.Threading;
@@ -16,8 +17,14 @@ namespace GossipMesh.Core
         public ushort ServicePort { get; private set; }
         internal long GossipCounter { get { return Interlocked.Read(ref _gossipCounter); } }
 
-        private Member()
+        internal Member(MemberEvent memberEvent)
         {
+            State = memberEvent.State;
+            IP = memberEvent.IP;
+            GossipPort = memberEvent.GossipPort;
+            Generation = memberEvent.Generation;
+            Service = memberEvent.Service;
+            ServicePort = memberEvent.ServicePort;
         }
 
         public Member(MemberState state, IPAddress ip, ushort gossipPort, byte generation, byte service, ushort servicePort)
@@ -38,15 +45,15 @@ namespace GossipMesh.Core
             }
         }
 
-        internal void Update(MemberState state, byte generation, byte service, ushort servicePort)
+        internal void Update(MemberEvent memberEvent)
         {
-            State = state;
-            Generation = generation;
+            State = memberEvent.State;
+            Generation = memberEvent.Generation;
 
-            if (state == MemberState.Alive)
+            if (memberEvent.State == MemberState.Alive)
             {
-                Service = service;
-                ServicePort = servicePort;
+                Service = memberEvent.Service;
+                ServicePort = memberEvent.ServicePort;
             }
 
             Interlocked.Exchange(ref _gossipCounter, 0);
@@ -83,25 +90,6 @@ namespace GossipMesh.Core
             }
 
             Interlocked.Increment(ref _gossipCounter);
-        }
-
-        internal static Member ReadFrom(Stream stream)
-        {
-            var newMember = new Member
-            {
-                State = stream.ReadMemberState(),
-                IP = stream.ReadIPAddress(),
-                GossipPort = stream.ReadPort(),
-                Generation = (byte)stream.ReadByte(),
-            };
-
-            if (newMember.State == MemberState.Alive)
-            {
-                newMember.Service = (byte)stream.ReadByte();
-                newMember.ServicePort = stream.ReadPort();
-            }
-
-            return newMember;
         }
 
         public override string ToString()

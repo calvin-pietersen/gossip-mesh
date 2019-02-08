@@ -20,18 +20,11 @@ namespace GossipMesh.Seed
     {
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddSignalR(options => {
-                options.EnableDetailedErrors = true;
-            })
-                .AddJsonProtocol(options => {
-                    options.PayloadSerializerSettings.ContractResolver = 
-                    new DefaultContractResolver();
-                });
-
-            services.AddSingleton<IStateListener, MembersListener>();
+            services.AddSignalR();
+            services.AddSingleton<IMemberEventListener, MembersListener>();
         }
 
-        public void Configure(ILogger<Startup> logger, IStateListener stateListener, IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(ILogger<Startup> logger, IEnumerable<IMemberEventListener> memberEventListeners, IApplicationBuilder app, IHostingEnvironment env)
         {
             if (env.IsDevelopment())
             {
@@ -55,10 +48,9 @@ namespace GossipMesh.Seed
                 Service = (byte)1,
                 ServicePort = (ushort)5000,
                 SeedMembers = new IPEndPoint[] { new IPEndPoint(IPAddress.Parse("192.168.1.104"), 10001)},
-                StateListeners = new IStateListener[] { stateListener }
             };
 
-            var gossiper = new Gossiper(options, logger);
+            var gossiper = new Gossiper(options, memberEventListeners, logger);
 
             gossiper.Start();
         }

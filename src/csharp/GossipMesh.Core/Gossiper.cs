@@ -13,6 +13,7 @@ namespace GossipMesh.Core
     {
         private readonly Member _self;
         private readonly GossiperOptions _options;
+        private readonly IEnumerable<IMemberEventListener> _memberEventListeners;
         private readonly object _memberLocker = new Object();
         private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
         private readonly object _awaitingAcksLocker = new Object();
@@ -25,9 +26,10 @@ namespace GossipMesh.Core
 
         private readonly ILogger _logger;
 
-        public Gossiper(GossiperOptions options, ILogger logger)
+        public Gossiper(GossiperOptions options, IEnumerable<IMemberEventListener> memberEventListeners, ILogger logger)
         {
             _options = options;
+            _memberEventListeners = memberEventListeners;
             _logger = logger;
 
             _self = new Member(MemberState.Alive, options.MemberIP, options.ListenPort, 1, options.Service, options.ServicePort);
@@ -279,44 +281,46 @@ namespace GossipMesh.Core
         {
             while (stream.Position < stream.Length)
             {
-                var newMember = Member.ReadFrom(stream);
+                var memberEvent = MemberEvent.ReadFrom(stream);
 
                 // we don't add ourselves to the member list
-                if (!EndPointsMatch(newMember.GossipEndPoint, _self.GossipEndPoint))
+                if (!EndPointsMatch(memberEvent.GossipEndPoint, _self.GossipEndPoint))
                 {
                     lock (_memberLocker)
                     {
-                        if (_members.TryGetValue(newMember.GossipEndPoint, out var oldMember) &&
-                            (oldMember.IsLaterGeneration(newMember.Generation) || 
-                            (oldMember.Generation == newMember.Generation && oldMember.IsStateSuperseded(newMember.State))))
+                        if (_members.TryGetValue(memberEvent.GossipEndPoint, out var member) &&
+                            (member.IsLaterGeneration(memberEvent.Generation) || 
+                            (member.Generation == memberEvent.Generation && member.IsStateSuperseded(memberEvent.State))))
                         {
-                            RemoveAwaitingAck(newMember.GossipEndPoint); // stops dead claim escalation
-                            _members[newMember.GossipEndPoint].Update(newMember.State, newMember.Generation, newMember.Service, newMember.ServicePort);
-                            _logger.LogInformation("Gossip.Mesh member state changed {member}", _members[newMember.GossipEndPoint]);
+                            RemoveAwaitingAck(member.GossipEndPoint); // stops dead claim escalation
+                            member.Update(memberEvent);
+                            _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
 
-                            PushToListeners(_members[newMember.GossipEndPoint]);
+                            PushToListeners(memberEvent);
                         }
 
-                        else if (oldMember == null)
+                        else if (member == null)
                         {
-                            _members.Add(newMember.GossipEndPoint, newMember);
-                            _logger.LogInformation("Gossip.Mesh member added {member}", newMember);
+                            member = new Member(memberEvent);
+                            _members.Add(member.GossipEndPoint, member);
+                            _logger.LogInformation("Gossip.Mesh member added {member}", memberEvent);
 
-                            PushToListeners(newMember);
+                            PushToListeners(memberEvent);
                         }
                     }
                     
-                    if (newMember.State == MemberState.Dead || newMember.State == MemberState.Left)
+                    if (memberEvent.State == MemberState.Dead || memberEvent.State == MemberState.Left)
                     {
-                        AddPruneMember(newMember.GossipEndPoint);
+                        AddPruneMember(memberEvent.GossipEndPoint);
                     }
                 }
 
                 // handle any state claims about ourselves
-                else if (_self.IsLaterGeneration(newMember.Generation) || 
-                        (newMember.State != MemberState.Alive && newMember.Generation == _self.Generation))
+                else if (_self.IsLaterGeneration(memberEvent.Generation) || 
+                        (memberEvent.State != MemberState.Alive && memberEvent.Generation == _self.Generation))
                 {
-                    _self.Generation = (byte)(newMember.Generation + 1);
+                    _self.Generation = (byte)(memberEvent.Generation + 1);
+                    _logger.LogInformation("Gossip.Mesh received a memberEvent: {memberEvent} about self. Upped generation: {generation}", memberEvent, _self.Generation);
                 }
             }
         }
@@ -407,7 +411,7 @@ namespace GossipMesh.Core
                 {
                     member.Update(MemberState.Suspicious);
                     _logger.LogInformation("Gossip.Mesh suspicious member {member}", member);
-                    PushToListeners(member);
+                    PushToListeners(new MemberEvent(member));
                 }
             }
         }
@@ -427,7 +431,7 @@ namespace GossipMesh.Core
                             {
                                 member.Update(MemberState.Dead);
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
-                                PushToListeners(member);
+                                PushToListeners(new MemberEvent(member));
                             }
                         }
 
@@ -514,13 +518,13 @@ namespace GossipMesh.Core
             _lastProtocolPeriod = DateTime.Now;
         }
 
-        private void PushToListeners(Member member)
+        private void PushToListeners(MemberEvent memberEvent)
         {
             Task.Run(() =>
             {
-                foreach (var listener in _options.StateListeners)
+                foreach (var listener in _memberEventListeners)
                 {
-                    listener.MemberStateUpdated(member);
+                    listener.MemberEventCallback(memberEvent);
                 }
             });
         }

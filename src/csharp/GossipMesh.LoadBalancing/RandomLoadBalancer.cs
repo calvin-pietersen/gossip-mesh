@@ -6,12 +6,12 @@ using GossipMesh.Core;
 
 namespace GossipMesh.LoadBalancing
 {
-    public class RandomLoadBalancer : ILoadBalancer, IStateListener
+    public class RandomLoadBalancer : ILoadBalancer, IMemberEventListener
     {
         List<Member> services = new List<Member>();
         Random random = new Random();
 
-        public void MemberStateUpdated(Member member) {
+        public void MemberEventCallback(MemberEvent memberEvent) {
             
         }
 

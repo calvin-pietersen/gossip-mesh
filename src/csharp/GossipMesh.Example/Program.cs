@@ -13,7 +13,6 @@ namespace GossipMesh.Example
         public static async Task Main(string[] args)
         {
             var listenEndPoint = IPEndPointFromString(args[0]);
-
             var seeds = args.Skip(1).Select(IPEndPointFromString).ToArray();
       
             var loggerFactory = new LoggerFactory();
@@ -31,11 +30,12 @@ namespace GossipMesh.Example
                 MemberIP = listenEndPoint.Address,
                 Service = (byte)1,
                 ServicePort = (ushort)8080,
-                SeedMembers = seeds,
-                StateListeners = new IStateListener[] { }
+                SeedMembers = seeds
             };
 
-            var gossiper = new Gossiper(options, logger);
+            var memberEventListeners = new IMemberEventListener[] { };
+
+            var gossiper = new Gossiper(options, memberEventListeners, logger);
             gossiper.Start();
 
             while (true)
