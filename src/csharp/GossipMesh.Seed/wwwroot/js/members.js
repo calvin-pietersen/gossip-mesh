@@ -2,10 +2,9 @@
 
 var connection = new signalR.HubConnectionBuilder().withUrl("/membersHub").build();
 
-connection.on("MemberStateUpdatedMessage", function (message) {
+connection.on("MemberStateUpdatedMessage", function (senderGossipEndPoint, memberEvent) {
     var li = document.createElement("li");
-    li.textContent = message;
-    console.log(message);
+    li.textContent = senderGossipEndPoint + " knows " + memberEvent;
     document.getElementById("membersList").appendChild(li);
 });
 

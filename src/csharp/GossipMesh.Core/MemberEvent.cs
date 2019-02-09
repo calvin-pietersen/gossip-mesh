@@ -13,7 +13,7 @@ namespace GossipMesh.Core
         public byte Service { get; private set; }
         public ushort ServicePort { get; private set; }
 
-        internal IPEndPoint GossipEndPoint 
+        public IPEndPoint GossipEndPoint 
         {
             get { return new IPEndPoint(IP, GossipPort); }
         }
@@ -60,6 +60,22 @@ namespace GossipMesh.Core
             Generation,
             Service,
             ServicePort);
+        }
+
+        public bool Equal(MemberEvent memberEvent)
+        {
+            return memberEvent != null &&
+                    State == memberEvent.State &&
+                    IP.Equals(memberEvent.IP) &&
+                    GossipPort == memberEvent.GossipPort &&
+                    Generation == memberEvent.Generation &&
+                    Service == memberEvent.Service &&
+                    ServicePort == memberEvent.ServicePort;
+        }
+
+        public bool NotEqual(MemberEvent memberEvent)
+        {
+            return !Equal(memberEvent);
         }
     }
 }

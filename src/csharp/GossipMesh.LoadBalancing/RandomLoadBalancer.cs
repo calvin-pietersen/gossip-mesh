@@ -11,7 +11,7 @@ namespace GossipMesh.LoadBalancing
         List<Member> services = new List<Member>();
         Random random = new Random();
 
-        public void MemberEventCallback(MemberEvent memberEvent) {
+        public void MemberEventCallback(IPEndPoint senderGossipEndPoint, MemberEvent memberEvent) {
             
         }
 
