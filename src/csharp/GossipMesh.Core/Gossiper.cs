@@ -307,7 +307,7 @@ namespace GossipMesh.Core
                         {
                             member = new Member(memberEvent);
                             _members.Add(member.GossipEndPoint, member);
-                            _logger.LogInformation("Gossip.Mesh member added {member}", memberEvent);
+                            _logger.LogInformation("Gossip.Mesh member added {member}", member);
 
                             PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                             //PushToMemberUpdatedListeners(memberEvent);
