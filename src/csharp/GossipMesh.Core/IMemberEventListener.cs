@@ -4,6 +4,6 @@ namespace GossipMesh.Core
 {
     public interface IMemberEventListener
     {
-        void MemberEventCallback(IPEndPoint senderGossipEndPoint, MemberEvent MemberEvent);
+        void MemberEventCallback(MemberEvent MemberEvent);
     }
 }

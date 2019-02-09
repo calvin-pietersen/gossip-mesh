@@ -23,11 +23,11 @@ namespace GossipMesh.Seed.Listeners
             _logger = logger;
         }
 
-        public void MemberEventCallback(IPEndPoint senderGossipEndPoint, MemberEvent memberEvent)
+        public void MemberEventCallback(MemberEvent memberEvent)
         {
-            if(_memberEventsStore.Add(senderGossipEndPoint, memberEvent))
+            if(_memberEventsStore.Add(memberEvent))
             {
-                _membersHubContext.Clients.All.SendAsync("MemberStateUpdatedMessage", senderGossipEndPoint, memberEvent).ConfigureAwait(false);
+                _membersHubContext.Clients.All.SendAsync("MemberStateUpdatedMessage", memberEvent).ConfigureAwait(false);
             }
         }
     }

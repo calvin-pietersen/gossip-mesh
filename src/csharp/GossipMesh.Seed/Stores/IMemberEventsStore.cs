@@ -7,8 +7,8 @@ namespace GossipMesh.Seed.Stores
 {
     public interface IMemberEventsStore
     {
-        bool Add(IPEndPoint senderGossipEndPoint, MemberEvent memberEvent);
+        bool Add(MemberEvent memberEvent);
 
-        Dictionary<IPEndPoint, Dictionary<IPEndPoint, List<MemberEvent>>> GetAll();
+        MemberEvent[]  GetAll();
     }
 }

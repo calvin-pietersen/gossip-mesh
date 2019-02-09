@@ -91,6 +91,8 @@ namespace GossipMesh.Core
                 try
                 {
                     var request = await _udpClient.ReceiveAsync().ConfigureAwait(false);
+                    var receivedDateTime = DateTime.UtcNow;
+
                     using (var stream = new MemoryStream(request.Buffer, false))
                     {
                         var messageType = stream.ReadMessageType();
@@ -112,7 +114,7 @@ namespace GossipMesh.Core
                         }
 
                         // update members
-                        UpdateMembers(request.RemoteEndPoint, stream);
+                        UpdateMembers(request.RemoteEndPoint, receivedDateTime, stream);
 
                         var members = GetMembers(request.RemoteEndPoint);
                         await RequestHandler(request, messageType, sourceGossipEndPoint, destinationGossipEndPoint, members).ConfigureAwait(false);
@@ -277,12 +279,12 @@ namespace GossipMesh.Core
             await SendMessageAsync(MessageType.AckRequest, destinationGossipEndPoint, indirectGossipEndPoint, members).ConfigureAwait(false);
         }
 
-        private void UpdateMembers(IPEndPoint senderGossipEndPoint, Stream stream)
+        private void UpdateMembers(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Stream stream)
         {
             while (stream.Position < stream.Length)
             {
-                var memberEvent = MemberEvent.ReadFrom(stream);
-                PushToMemberEventListeners(senderGossipEndPoint, memberEvent);
+                var memberEvent = MemberEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream);
+                PushToMemberEventListeners(memberEvent);
 
                 // we don't add ourselves to the member list
                 if (!EndPointsMatch(memberEvent.GossipEndPoint, _self.GossipEndPoint))
@@ -297,7 +299,7 @@ namespace GossipMesh.Core
                             member.Update(memberEvent);
                             _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
 
-                            PushToMemberEventListeners(_self.GossipEndPoint, memberEvent);
+                            PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                             //PushToMemberUpdatedListeners(memberEvent);
                         }
 
@@ -307,7 +309,7 @@ namespace GossipMesh.Core
                             _members.Add(member.GossipEndPoint, member);
                             _logger.LogInformation("Gossip.Mesh member added {member}", memberEvent);
 
-                            PushToMemberEventListeners(_self.GossipEndPoint, memberEvent);
+                            PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                             //PushToMemberUpdatedListeners(memberEvent);
                         }
                     }
@@ -415,7 +417,7 @@ namespace GossipMesh.Core
                     member.Update(MemberState.Suspicious);
                     _logger.LogInformation("Gossip.Mesh suspicious member {member}", member);
 
-                    PushToMemberEventListeners(_self.GossipEndPoint, new MemberEvent(member));
+                    PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                     //PushToMemberUpdatedListeners(new MemberEvent(member));
                 }
             }
@@ -437,7 +439,7 @@ namespace GossipMesh.Core
                                 member.Update(MemberState.Dead);
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
 
-                                PushToMemberEventListeners(_self.GossipEndPoint, new MemberEvent(member));
+                                PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                                 //PushToMemberUpdatedListeners(new MemberEvent(member));
                             }
                         }
@@ -525,13 +527,13 @@ namespace GossipMesh.Core
             _lastProtocolPeriod = DateTime.Now;
         }
 
-        private void PushToMemberEventListeners(IPEndPoint senderGossipEndPoint, MemberEvent memberEvent)
+        private void PushToMemberEventListeners(MemberEvent memberEvent)
         {
             Task.Run(() =>
             {
                 foreach (var listener in _memberEventListeners)
                 {
-                    listener.MemberEventCallback(senderGossipEndPoint, memberEvent);
+                    listener.MemberEventCallback(memberEvent);
                 }
             });
         }
