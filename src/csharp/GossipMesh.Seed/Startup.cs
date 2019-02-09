@@ -5,7 +5,9 @@ using System.Net;
 using System.Threading.Tasks;
 using GossipMesh.Core;
 using GossipMesh.Seed.Hubs;
+using GossipMesh.Seed.Json;
 using GossipMesh.Seed.Listeners;
+using GossipMesh.Seed.Stores;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -20,20 +22,23 @@ namespace GossipMesh.Seed
     {
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddSignalR();
+            services.AddSignalR()
+            .AddJsonProtocol(option =>
+            {
+                option.PayloadSerializerSettings.Converters.Add(new IPAddressConverter());
+                option.PayloadSerializerSettings.Converters.Add(new IPEndPointConverter());
+            });
+
+            services.AddSingleton<IMemberEventsStore, MemberEventsStore>();
             services.AddSingleton<IMemberEventListener, MembersListener>();
         }
 
         public void Configure(ILogger<Startup> logger, IEnumerable<IMemberEventListener> memberEventListeners, IApplicationBuilder app, IHostingEnvironment env)
         {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-            }
-
             app.UseDefaultFiles();
             app.UseStaticFiles();
-            app.UseSignalR(routes => {
+            app.UseSignalR(routes =>
+            {
                 routes.MapHub<MembersHub>("/membersHub");
             });
 
@@ -47,7 +52,7 @@ namespace GossipMesh.Seed
                 MemberIP = IPAddress.Parse("192.168.1.104"),
                 Service = (byte)1,
                 ServicePort = (ushort)5000,
-                SeedMembers = new IPEndPoint[] { new IPEndPoint(IPAddress.Parse("192.168.1.104"), 10001)},
+                SeedMembers = new IPEndPoint[] { new IPEndPoint(IPAddress.Parse("192.168.1.104"), 10001) },
             };
 
             var gossiper = new Gossiper(options, memberEventListeners, logger);
