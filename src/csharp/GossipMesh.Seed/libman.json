@@ -9,6 +9,14 @@
         "dist/browser/signalr.js",
         "dist/browser/signalr.min.js"
       ]
+    },
+    {
+      "library": "d3@5.9.1",
+      "destination": "wwwroot/lib/d3",
+      "files": [
+        "dist/d3.js",
+        "dist/d3.min.js"
+      ]
     }
   ]
 }
