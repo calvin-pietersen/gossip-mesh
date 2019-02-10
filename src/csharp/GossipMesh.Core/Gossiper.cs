@@ -38,6 +38,7 @@ namespace GossipMesh.Core
         public void Start()
         {
             _logger.LogInformation("Starting Gossip.Mesh Gossiper on {GossipEndPoint}", _self.GossipEndPoint);
+            PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
 
             _udpClient = CreateUdpClient(_self.GossipEndPoint);
 
@@ -292,7 +293,7 @@ namespace GossipMesh.Core
                     lock (_memberLocker)
                     {
                         if (_members.TryGetValue(memberEvent.GossipEndPoint, out var member) &&
-                            (member.IsLaterGeneration(memberEvent.Generation) || 
+                            (member.IsLaterGeneration(memberEvent.Generation) ||
                             (member.Generation == memberEvent.Generation && member.IsStateSuperseded(memberEvent.State))))
                         {
                             RemoveAwaitingAck(member.GossipEndPoint); // stops dead claim escalation
@@ -313,19 +314,24 @@ namespace GossipMesh.Core
                             //PushToMemberUpdatedListeners(memberEvent);
                         }
                     }
-                    
+
                     if (memberEvent.State == MemberState.Dead || memberEvent.State == MemberState.Left)
                     {
                         AddPruneMember(memberEvent.GossipEndPoint);
                     }
                 }
 
-                // handle any state claims about ourselves
-                else if (_self.IsLaterGeneration(memberEvent.Generation) || 
-                        (memberEvent.State != MemberState.Alive && memberEvent.Generation == _self.Generation))
+                else
                 {
-                    _self.Generation = (byte)(memberEvent.Generation + 1);
-                    _logger.LogInformation("Gossip.Mesh received a memberEvent: {memberEvent} about self. Upped generation: {generation}", memberEvent, _self.Generation);
+                    // handle any state claims about ourselves
+                    if (_self.IsLaterGeneration(memberEvent.Generation) ||
+                        (memberEvent.State != MemberState.Alive && memberEvent.Generation == _self.Generation))
+                    {
+                        _self.Generation = (byte)(memberEvent.Generation + 1);
+                        _logger.LogInformation("Gossip.Mesh received a memberEvent: {memberEvent} about self. Upped generation: {generation}", memberEvent, _self.Generation);
+                    }
+
+                    PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
                 }
             }
         }

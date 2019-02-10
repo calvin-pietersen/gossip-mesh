@@ -10,5 +10,7 @@ namespace GossipMesh.Seed.Stores
         bool Add(MemberEvent memberEvent);
 
         MemberEvent[]  GetAll();
+
+        Graph GetGraph();
     }
 }

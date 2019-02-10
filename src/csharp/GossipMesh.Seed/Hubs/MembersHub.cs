@@ -21,7 +21,7 @@ namespace GossipMesh.Seed.Hubs
 
         public override async Task OnConnectedAsync()
         {
-            await Clients.Caller.SendAsync("MemberStates", _memberEventsStore.GetAll()).ConfigureAwait(false);
+            await Clients.Caller.SendAsync("InitializationMessage", _memberEventsStore.GetGraph(), _memberEventsStore.GetAll()).ConfigureAwait(false);
         }
     }
 }

@@ -14,19 +14,14 @@ namespace GossipMesh.Seed.Json
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            IPEndPoint ep = (IPEndPoint)value;
-            JObject jo = new JObject();
-            jo.Add("Address", JToken.FromObject(ep.Address, serializer));
-            jo.Add("Port", ep.Port);
-            jo.WriteTo(writer);
+            var ep = (IPEndPoint)value;
+            writer.WriteValue(ep.ToString());
         }
 
         public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
         {
-            JObject jo = JObject.Load(reader);
-            IPAddress address = jo["Address"].ToObject<IPAddress>(serializer);
-            int port = (int)jo["Port"];
-            return new IPEndPoint(address, port);
+            var ipEndPoint = reader.ReadAsString().Split(":");
+            return new IPEndPoint(long.Parse(ipEndPoint[0]), int.Parse(ipEndPoint[1]));
         }
     }
 }
