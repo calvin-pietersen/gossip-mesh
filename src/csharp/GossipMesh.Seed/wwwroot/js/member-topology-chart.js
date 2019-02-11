@@ -85,12 +85,11 @@ function initialize_topo() {
             .attr('class', 'tooltip')
             .offset([-10, 0])
             .html(function (d) {
-                return "<p><strong class='title'>MAC:</strong> " + d.mac + "</p>" +
-                    "<p><strong class='title'>IP:</strong>" + d.ip + "</p>" +
-                    "<p><strong class='title'>Netmask:</strong>" + d.netmask + "</p>" +
-                    "<p><strong class='title'>Gateway:</strong>" + d.gateway + "</p>" +
-                    "<p><strong class='title'>VLAN:</strong>" + d.vlan + "</p>" +
-                    "<p><strong class='title'>Name:</strong>" + d.device_name + "</p>";
+                return "<p><strong class='title'>IP:</strong>" + d.ip + "</p>" +
+                    "<p><strong class='title'>State:</strong>" + d.state + "</p>" +
+                    "<p><strong class='title'>Gen:</strong>" + d.generation + "</p>" +
+                    "<p><strong class='title'>Service:</strong>" + d.service + "</p>" +
+                    "<p><strong class='title'>Service Port:</strong>" + d.servicePort + "</p>";
             });
         svg.call(node_tip);
         var link_src_tip = d3.tip().attr('class', 'tooltip'),
@@ -345,7 +344,7 @@ function load(graph) {
         .attr('y', 35);
     desc = new_desc.merge(desc);
     desc.select('text').text(function (d) {
-        return d['mac'];
+        return d['id'];
     });
 
     simulation.nodes(graph.nodes);
@@ -507,13 +506,4 @@ d3.select('button#animated_btn').on('click', function () {
             .force('link', null);
         me.text('Static');
     }
-});
-d3.select('select#desc_field_selector').on('change', function () {
-    var field = this.value,
-        desc_con = d3.select('svg#topo_container')
-            .select('g.desc')
-            .selectAll('g.desc_container');
-    desc_con.select('text').text(function (d) {
-        return d[field];
-    });
 });

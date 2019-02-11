@@ -69,13 +69,22 @@ namespace GossipMesh.Seed.Stores
                                 .SelectMany(senderMemberEvents => senderMemberEvents.Value
                                     .Where(memberEvents => senderMemberEvents.Key.Equals(memberEvents.Key))
                                     .Select(memberEvents =>
-                                        new Graph.Node { Id = memberEvents.Key, Ip = memberEvents.Value.Last().GossipEndPoint })).ToArray();
+                                        new Graph.Node {
+                                                            Id = memberEvents.Key,
+                                                            Ip = memberEvents.Value.Last().IP,
+                                                            State = memberEvents.Value.Last().State,
+                                                            Generation = memberEvents.Value.Last().Generation,
+                                                            Service = memberEvents.Value.Last().Service,
+                                                            ServicePort = memberEvents.Value.Last().ServicePort,
+                                                        })).ToArray();
 
                 var links = _memberEvents
                                 .SelectMany(senderMemberEvents => senderMemberEvents.Value
                                     .Where(memberEvents => !senderMemberEvents.Key.Equals(memberEvents.Key))
                                     .Select(memberEvents =>
-                                        new Graph.Link { Source = senderMemberEvents.Key, Target = memberEvents.Key })).ToArray();
+                                        new Graph.Link { Source = senderMemberEvents.Key, Target = memberEvents.Key }))
+                                .Distinct()
+                                .ToArray();
                 return new Graph
                 {
                     Nodes = nodes,

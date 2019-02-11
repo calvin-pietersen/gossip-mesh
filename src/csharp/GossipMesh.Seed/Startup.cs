@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Serialization;
@@ -20,6 +21,12 @@ namespace GossipMesh.Seed
 {
     public class Startup
     {
+        private readonly IConfiguration _configuration;
+        public Startup(IConfiguration configuration)
+        {
+            _configuration = configuration;
+        }
+
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddSignalR()
@@ -48,11 +55,11 @@ namespace GossipMesh.Seed
                 ProtocolPeriodMilliseconds = 200,
                 AckTimeoutMilliseconds = 80,
                 NumberOfIndirectEndpoints = 2,
-                ListenPort = (ushort)10010,
-                MemberIP = IPAddress.Parse("192.168.1.104"),
+                ListenPort = ushort.Parse(_configuration["port"]),
+                MemberIP = IPAddress.Parse(_configuration["ip"]),
                 Service = (byte)1,
                 ServicePort = (ushort)5000,
-                SeedMembers = new IPEndPoint[] { new IPEndPoint(IPAddress.Parse("192.168.1.104"), 10001) },
+                SeedMembers = new IPEndPoint[] {},
             };
 
             var gossiper = new Gossiper(options, memberEventListeners, logger);
