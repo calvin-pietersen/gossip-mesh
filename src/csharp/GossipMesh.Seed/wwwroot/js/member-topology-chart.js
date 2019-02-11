@@ -89,7 +89,7 @@ function initialize_topo() {
                     "<p><strong class='title'>State:</strong>" + d.state + "</p>" +
                     "<p><strong class='title'>Gen:</strong>" + d.generation + "</p>" +
                     "<p><strong class='title'>Service:</strong>" + d.service + "</p>" +
-                    "<p><strong class='title'>Service Port:</strong>" + d.servicePort + "</p>";
+                    "<p><strong class='title'>Port:</strong>" + d.servicePort + "</p>";
             });
         svg.call(node_tip);
         var link_src_tip = d3.tip().attr('class', 'tooltip'),
@@ -127,8 +127,6 @@ function load(graph) {
         link_dst_tip = topo['link_dest_tip'],
         svg = d3.select('svg#topo_container');
 
-    // var links = [];
-    // A mapping: {node.id: node}
     var node_by_id = d3.map(graph.nodes, function (d) {
         return d.id;
     });
@@ -139,14 +137,13 @@ function load(graph) {
             inter = {};
         graph.nodes.push(inter);
         graph.links.push({ 'source': src, 'target': inter }, { 'source': inter, 'target': target });
-        // links.push({'source': src, 'target': inter}, {'source': inter, 'target': target});
         bilinks.push({
             'id': link['id'],
             'source': src,
             'intermediate': inter,
             'target': target,
-            'source_port_disp': link['source_port_disp'],
-            'target_port_disp': link['target_port_disp']
+            'source_port': link['source'],
+            'target_port': link['target']
         });
     });
     /*
@@ -248,12 +245,12 @@ function load(graph) {
             link_src_tip
                 .direction(src_dir)
                 .offset(src_offset)
-                .html("<strong>" + d.source_port_disp + "</strong>")
+                .html("<strong>" + d.source.state + "</strong>")
                 .show(src_node.node());
             link_dst_tip
                 .direction(dst_dir)
                 .offset(dst_offset)
-                .html("<strong> " + d.target_port_disp + "</strong>")
+                .html("<strong> " + d.target.state + "</strong>")
                 .show(dst_node.node());
         })
         .on('mouseout', function (d) {
@@ -281,6 +278,7 @@ function load(graph) {
     /*
         update node visualization
     */
+
     var node = svg.select('g.nodes').selectAll('g.node_container').data(
         graph.nodes.filter(function (d) {
             return 'id' in d;
@@ -308,24 +306,24 @@ function load(graph) {
         .text("\ueaf2");
     node = new_node.merge(node);
     node.attr('class', function (d) {
-        var stat_cls;
-        if (d['knmp_on'] && d['ip_on'] && d['snmp_on']) {
-            stat_cls = 'stat_normal';
-        }
-        else if (d['knmp_on'] && d['ip_on'] && !d['snmp_on']) {
-            stat_cls = 'stat_abnormal';
-        }
-        else if (d['knmp_on'] && !d['ip_on'] && !d['snmp_on']) {
-            stat_cls = 'stat_error'
-        }
-        else if (!d['knmp_on'] && !d['ip_on'] && !d['snmp_on']) {
-            stat_cls = 'stat_down';
-        }
-        else {
-            // knmp off, snmp_on -> unknown device.
-            stat_cls = 'stat_unknown';
-        }
-        return 'node_container ' + stat_cls;
+        // var stat_cls;
+        // if (d['knmp_on'] && d['ip_on'] && d['snmp_on']) {
+        //     stat_cls = 'stat_normal';
+        // }
+        // else if (d['knmp_on'] && d['ip_on'] && !d['snmp_on']) {
+        //     stat_cls = 'stat_abnormal';
+        // }
+        // else if (d['knmp_on'] && !d['ip_on'] && !d['snmp_on']) {
+        //     stat_cls = 'stat_error'
+        // }
+        // else if (!d['knmp_on'] && !d['ip_on'] && !d['snmp_on']) {
+        //     stat_cls = 'stat_down';
+        // }
+        // else {
+        //     // knmp off, snmp_on -> unknown device.
+        //     stat_cls = 'stat_unknown';
+        // }
+        return 'node_container stat_normal';
     });
     /*
         update descriptions

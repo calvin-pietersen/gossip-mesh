@@ -33,8 +33,10 @@ connection.on("InitializationMessage", function (graphData, memberEvents) {
     // load(graph);
 });
 
-connection.on("MemberStateUpdatedMessage", function (memberEvent) {
+connection.on("MemberStateUpdatedMessage", function (graphData, memberEvent) {
     addToList(memberEvent);
+
+    load(graphData);
 });
 
 function addToList(memberEvent) {

@@ -34,6 +34,7 @@ namespace GossipMesh.Seed
             {
                 option.PayloadSerializerSettings.Converters.Add(new IPAddressConverter());
                 option.PayloadSerializerSettings.Converters.Add(new IPEndPointConverter());
+                option.PayloadSerializerSettings.Converters.Add(new MemberStateConverter());
             });
 
             services.AddSingleton<IMemberEventsStore, MemberEventsStore>();
