@@ -23,8 +23,8 @@ namespace GossipMesh.Example
             var options = new GossiperOptions
             {
                 MaxUdpPacketBytes = 508,
-                ProtocolPeriodMilliseconds = 200,
-                AckTimeoutMilliseconds = 80,
+                ProtocolPeriodMilliseconds = 500,
+                AckTimeoutMilliseconds = 250,
                 NumberOfIndirectEndpoints = 2,
                 ListenPort = (ushort)listenEndPoint.Port,
                 MemberIP = listenEndPoint.Address,

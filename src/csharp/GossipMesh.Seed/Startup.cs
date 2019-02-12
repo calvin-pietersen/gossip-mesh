@@ -53,8 +53,8 @@ namespace GossipMesh.Seed
             var options = new GossiperOptions
             {
                 MaxUdpPacketBytes = 508,
-                ProtocolPeriodMilliseconds = 200,
-                AckTimeoutMilliseconds = 80,
+                ProtocolPeriodMilliseconds = 500,
+                AckTimeoutMilliseconds = 250,
                 NumberOfIndirectEndpoints = 2,
                 ListenPort = ushort.Parse(_configuration["port"]),
                 MemberIP = IPAddress.Parse(_configuration["ip"]),
