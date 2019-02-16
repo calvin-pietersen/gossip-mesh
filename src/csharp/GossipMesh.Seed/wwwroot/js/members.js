@@ -12,7 +12,8 @@ const dataTable = $('#realtime').DataTable({
         { title: 'Generation'},
         { title: 'Service'},
         { title: 'Service Port'}
-    ]
+    ],
+    order: [[ 0, "desc" ]]
 });
 
 var connection = new signalR.HubConnectionBuilder().withUrl("/membersHub").build();
@@ -20,30 +21,32 @@ var connection = new signalR.HubConnectionBuilder().withUrl("/membersHub").build
 connection.on("InitializationMessage", function (graphData, memberEvents) {
     load(graphData);
 
+    var dataSet = [];
     for (var i = 0, len = memberEvents.length; i < len; i++) {
-        addMemberEventToTable(memberEvents[i]);
+       dataSet.push(memberEventToRecord(memberEvents[i]));
     }
+
+    dataTable.rows.add(dataSet).draw();
 });
 
 connection.on("MemberStateUpdatedMessage", function (graphData, memberEvent) {
     load(graphData);
-    addMemberEventToTable(memberEvent);S
+    dataTable.row.add(memberEventToRecord(memberEvent)).draw();
 });
 
 connection.start().catch(function (err) {
     return console.error(err.toString());
 });
 
-function addMemberEventToTable(memberEvent) {
-    var record = [
-        memberEvent.receivedDateTime,
-        memberEvent.senderGossipEndPoint,
-        memberEvent.ip,
-        memberEvent.state,
-        memberEvent.gossipPort,
-        memberEvent.generation,
-        memberEvent.service,
-        memberEvent.servicePort
-    ];
-dataTable.row.add(record).draw();
+function memberEventToRecord(memberEvent) {
+    return [
+            memberEvent.receivedDateTime,
+            memberEvent.senderGossipEndPoint,
+            memberEvent.ip,
+            memberEvent.state,
+            memberEvent.gossipPort,
+            memberEvent.generation,
+            memberEvent.service,
+            memberEvent.servicePort
+    ]
 }
