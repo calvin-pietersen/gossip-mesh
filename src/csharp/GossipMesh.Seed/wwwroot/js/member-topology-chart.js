@@ -306,24 +306,7 @@ function load(graph) {
         .text("\ueaf2");
     node = new_node.merge(node);
     node.attr('class', function (d) {
-        // var stat_cls;
-        // if (d['knmp_on'] && d['ip_on'] && d['snmp_on']) {
-        //     stat_cls = 'stat_normal';
-        // }
-        // else if (d['knmp_on'] && d['ip_on'] && !d['snmp_on']) {
-        //     stat_cls = 'stat_abnormal';
-        // }
-        // else if (d['knmp_on'] && !d['ip_on'] && !d['snmp_on']) {
-        //     stat_cls = 'stat_error'
-        // }
-        // else if (!d['knmp_on'] && !d['ip_on'] && !d['snmp_on']) {
-        //     stat_cls = 'stat_down';
-        // }
-        // else {
-        //     // knmp off, snmp_on -> unknown device.
-        //     stat_cls = 'stat_unknown';
-        // }
-        return 'node_container stat_normal';
+        return 'node_container ' + d['state'].toLowerCase();
     });
     /*
         update descriptions

@@ -50,22 +50,22 @@ rect#view_container {
     stroke-width: 5;
 }
 
-.nodes .node_container.stat_normal circle {
-    stroke: #1ca2db;
-    fill: rgba(53, 186, 246, 0.67);
+.nodes .node_container.alive circle {
+    stroke: #32CD32;
+    fill: rgb(50, 205, 50, 0.67);
 }
 
-.nodes .node_container.stat_abnormal circle {
-    stroke: #E5F1B6;
-    fill: rgba(229, 241, 182, 0.67);
+.nodes .node_container.suspicious circle {
+    stroke: #FF8C00;
+    fill: rgb(255, 140, 0, 0.67);
 }
 
-.nodes .node_container.stat_error circle {
+.nodes .node_container.dead circle {
     stroke: #ff4200;
     fill: rgba(214, 100, 62, 0.67);
 }
 
-.nodes .node_container.stat_down circle {
+.nodes .node_container.left circle {
     stroke: #adabab;
     fill: rgba(193, 193, 193, 0.67);
 }

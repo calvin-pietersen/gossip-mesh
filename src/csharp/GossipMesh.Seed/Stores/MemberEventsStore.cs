@@ -66,17 +66,21 @@ namespace GossipMesh.Seed.Stores
             lock (_memberEventsLocker)
             {
                 var nodes = _memberEvents
-                                .SelectMany(senderMemberEvents => senderMemberEvents.Value
-                                    .Where(memberEvents => senderMemberEvents.Key.Equals(memberEvents.Key))
-                                    .Select(memberEvents =>
-                                        new Graph.Node {
-                                                            Id = memberEvents.Key,
-                                                            Ip = memberEvents.Value.Last().IP,
-                                                            State = memberEvents.Value.Last().State,
-                                                            Generation = memberEvents.Value.Last().Generation,
-                                                            Service = memberEvents.Value.Last().Service,
-                                                            ServicePort = memberEvents.Value.Last().ServicePort,
-                                                        })).ToArray();
+                                .Select(member => _memberEvents.Values
+                                                    .Select(senderMemberEvents => senderMemberEvents.GetValueOrDefault(member.Key, null)?.Last())
+                                                    .Where(m => m != null)
+                                                    .OrderBy(m => m.Generation)
+                                                    .ThenBy(m => m.State)
+                                                    .Last())
+                                .Select(latestMemberEvent => new Graph.Node
+                                {
+                                    Id = latestMemberEvent.GossipEndPoint,
+                                    Ip = latestMemberEvent.IP,
+                                    State = latestMemberEvent.State,
+                                    Generation = latestMemberEvent.Generation,
+                                    Service = latestMemberEvent.Service,
+                                    ServicePort = latestMemberEvent.ServicePort
+                                }).ToArray();
 
                 var links = _memberEvents
                                 .SelectMany(senderMemberEvents => senderMemberEvents.Value
