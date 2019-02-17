@@ -3,14 +3,15 @@ using System.Net;
 using System.Linq;
 using System.Collections.Generic;
 using GossipMesh.Core;
+using System.Collections.Concurrent;
 
 namespace GossipMesh.LoadBalancing
 {
     public class RandomLoadBalancer : ILoadBalancer, IMemberListener
     {
-        Dictionary<byte, IServiceClientFactory> serviceClientFactories = new Dictionary<byte, IServiceClientFactory>();
-        Dictionary<byte, List<IPEndPoint>> serviceEndPoints = new Dictionary<byte, List<IPEndPoint>>();
-        Dictionary<IPEndPoint, IServiceClient> serviceClients = new Dictionary<IPEndPoint, IServiceClient>();
+        ConcurrentDictionary<byte, IServiceClientFactory> serviceClientFactories = new ConcurrentDictionary<byte, IServiceClientFactory>();
+        ConcurrentDictionary<byte, List<IPEndPoint>> serviceEndPoints = new ConcurrentDictionary<byte, List<IPEndPoint>>();
+        ConcurrentDictionary<IPEndPoint, IServiceClient> serviceClients = new ConcurrentDictionary<IPEndPoint, IServiceClient>();
 
         Random random = new Random();
 
@@ -25,13 +26,22 @@ namespace GossipMesh.LoadBalancing
             if (!serviceEndPoints.TryGetValue(member.Service, out endPoints))
             {
                 endPoints = new List<IPEndPoint>();
-                serviceEndPoints.Add(member.Service, endPoints);
+                serviceEndPoints.TryAdd(member.Service, endPoints);
             }
 
-            var endPoint = new IPEndPoint(member.IP, member.ServicePort); 
-            if (!endPoints.Contains(endPoint))
+            var endPoint = new IPEndPoint(member.IP, member.ServicePort);
+            lock (endPoints)
             {
-                endPoints.Add(endPoint);
+                var containsEndPoint = endPoints.Contains(endPoint);
+                if (!containsEndPoint && member.State <= MemberState.Suspicious)
+                {
+                    endPoints.Add(endPoint);
+                }
+
+                else if (containsEndPoint && member.State >= MemberState.Dead)
+                {
+                    endPoints.Remove(endPoint);
+                }
             }
         }
 
@@ -39,14 +49,18 @@ namespace GossipMesh.LoadBalancing
         {
             if (serviceEndPoints.TryGetValue(serviceType, out var endPoints))
             {
-                var endPoint = endPoints[random.Next(0, endPoints.Count())];
+                IPEndPoint endPoint;
+                lock (endPoints)
+                {
+                    endPoint = endPoints[random.Next(0, endPoints.Count())];
+                }
 
                 if (!serviceClients.TryGetValue(endPoint, out var serviceClient))
                 {
                     if (serviceClientFactories.TryGetValue(serviceType, out var serviceClientFactory))
                     {
                         serviceClient = serviceClientFactory.CreateServiceClient(endPoint);
-                        serviceClients.Add(endPoint, serviceClient);
+                        serviceClients.TryAdd(endPoint, serviceClient);
                     }
 
                     else
@@ -63,7 +77,7 @@ namespace GossipMesh.LoadBalancing
 
         public void RegisterServiceClientFactory(byte serviceType, IServiceClientFactory serviceClientFactory)
         {
-            serviceClientFactories.Add(serviceType, serviceClientFactory);
+            serviceClientFactories.TryAdd(serviceType, serviceClientFactory);
         }
     }
 }
