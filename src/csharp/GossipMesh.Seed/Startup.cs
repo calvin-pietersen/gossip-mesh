@@ -63,7 +63,7 @@ namespace GossipMesh.Seed
                 SeedMembers = new IPEndPoint[] {},
             };
 
-            var gossiper = new Gossiper(options, memberEventListeners, logger);
+            var gossiper = new Gossiper(options, memberEventListeners, Enumerable.Empty<IMemberListener>(), logger);
 
             gossiper.Start();
         }

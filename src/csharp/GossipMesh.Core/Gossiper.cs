@@ -14,6 +14,7 @@ namespace GossipMesh.Core
         private readonly Member _self;
         private readonly GossiperOptions _options;
         private readonly IEnumerable<IMemberEventListener> _memberEventListeners;
+        private readonly IEnumerable<IMemberListener> _memberListeners;
         private readonly object _memberLocker = new Object();
         private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
         private readonly object _awaitingAcksLocker = new Object();
@@ -26,10 +27,11 @@ namespace GossipMesh.Core
 
         private readonly ILogger _logger;
 
-        public Gossiper(GossiperOptions options, IEnumerable<IMemberEventListener> memberEventListeners, ILogger logger)
+        public Gossiper(GossiperOptions options, IEnumerable<IMemberEventListener> memberEventListeners, IEnumerable<IMemberListener> memberListeners, ILogger logger)
         {
             _options = options;
             _memberEventListeners = memberEventListeners;
+            _memberListeners = memberListeners;
             _logger = logger;
 
             _self = new Member(MemberState.Alive, options.MemberIP, options.ListenPort, 1, options.Service, options.ServicePort);
@@ -37,7 +39,7 @@ namespace GossipMesh.Core
 
         public void Start()
         {
-            _logger.LogInformation("Starting Gossip.Mesh Gossiper on {GossipEndPoint}", _self.GossipEndPoint);
+            _logger.LogInformation("Gossip.Mesh starting Gossiper on {GossipEndPoint}", _self.GossipEndPoint);
             PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
 
             _udpClient = CreateUdpClient(_self.GossipEndPoint);
@@ -301,7 +303,7 @@ namespace GossipMesh.Core
                             _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
 
                             PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
-                            //PushToMemberUpdatedListeners(memberEvent);
+                            PushToMemberListeners(member);
                         }
 
                         else if (member == null)
@@ -311,7 +313,7 @@ namespace GossipMesh.Core
                             _logger.LogInformation("Gossip.Mesh member added {member}", member);
 
                             PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
-                            //PushToMemberUpdatedListeners(memberEvent);
+                            PushToMemberListeners(member);
                         }
                     }
 
@@ -424,7 +426,7 @@ namespace GossipMesh.Core
                     _logger.LogInformation("Gossip.Mesh suspicious member {member}", member);
 
                     PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
-                    //PushToMemberUpdatedListeners(new MemberEvent(member));
+                    PushToMemberListeners(member);
                 }
             }
         }
@@ -446,7 +448,7 @@ namespace GossipMesh.Core
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
 
                                 PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
-                                //PushToMemberUpdatedListeners(new MemberEvent(member));
+                                PushToMemberListeners(member);
                             }
                         }
 
@@ -540,6 +542,17 @@ namespace GossipMesh.Core
                 foreach (var listener in _memberEventListeners)
                 {
                     listener.MemberEventCallback(memberEvent);
+                }
+            });
+        }
+
+        private void PushToMemberListeners(Member member)
+        {
+            Task.Run(() =>
+            {
+                foreach (var listener in _memberListeners)
+                {
+                    listener.MemberCallback(member);
                 }
             });
         }

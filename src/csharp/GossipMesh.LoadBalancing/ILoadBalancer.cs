@@ -7,6 +7,7 @@ namespace GossipMesh.LoadBalancing
 {
     public interface ILoadBalancer
     {
-        IPEndPoint GetEndpoint(byte serviceType);
+        void RegisterServiceClientFactory(byte serviceType, IServiceClientFactory serviceClientFactory);
+        T GetServiceClient<T>(byte serviceType);
     }
 }
