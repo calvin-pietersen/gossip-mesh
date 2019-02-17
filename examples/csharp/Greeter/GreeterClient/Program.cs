@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Grpc.Core;
 using Greeter;
 using Helloworld;
+using System.Diagnostics;
 
 namespace GreeterClient
 {
@@ -22,26 +23,26 @@ namespace GreeterClient
             var logger = CreateLogger();
 
             var loadBalancer = new RandomLoadBalancer();
-            loadBalancer.RegisterServiceClientFactory(2, new GreeterClientFactory());
+            loadBalancer.RegisterServiceClientFactory(2, new GreeterServiceClientFactory());
 
             var gossiper = StartGossiper(listenEndPoint, seeds, new IMemberListener[] { loadBalancer }, logger);
 
+            var stopwatch = new Stopwatch();
             while (true)
             {
                 try
                 {
                     Console.Write("Please enter your name: ");
                     var name = Console.ReadLine();
+                    stopwatch.Restart();
 
-                    Helloworld.Greeter.GreeterClient client = loadBalancer.GetServiceClient<Helloworld.Greeter.GreeterClient>(2);
+                    var serviceClient = loadBalancer.GetServiceClient<GreeterServiceClient>(2);
 
-                    var request = new HelloRequest
-                    {
-                        Name = name
-                    };
+                    var request = new HelloRequest{ Name = name};
+                    var response = serviceClient.Client.SayHello(request);
 
-                    var response = client.SayHello(request);
-                    Console.WriteLine(response.Message);
+                    stopwatch.Stop();
+                    Console.WriteLine($"Response: {response.Message} From: {serviceClient.ServiceEndPoint} TimeTaken: {stopwatch.ElapsedMilliseconds}ms");
                 }
 
                 catch (Exception ex)

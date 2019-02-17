@@ -4,6 +4,6 @@ namespace GossipMesh.LoadBalancing
 {
     public interface IServiceClientFactory
     {
-        object CreateServiceClient(IPEndPoint serviceEndPoint);
+        IServiceClient CreateServiceClient(IPEndPoint serviceEndPoint);
     }
 }
