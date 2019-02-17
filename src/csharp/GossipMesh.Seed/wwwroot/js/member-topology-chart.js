@@ -1,5 +1,4 @@
-var topo = null,  // keep track of topo.
-    animated = false;   // animated or static
+var topo = null;  // keep track of topo.
 function initialize_topo() {
     /*
         create container for links and nodes elements.
@@ -96,11 +95,7 @@ function initialize_topo() {
             link_dst_tip = d3.tip().attr('class', 'tooltip');
         svg.call(link_src_tip);
         svg.call(link_dst_tip);
-        if (animated) {
-            simulation.force('link', link_frc)
-                .force('center', center_frc)
-                .force('charge', charge_frc);
-        }
+
         // keep track of topo components.
         topo = {
             'simulation': simulation,
@@ -142,8 +137,8 @@ function load(graph) {
             'source': src,
             'intermediate': inter,
             'target': target,
-            'source_port': link['source'],
-            'target_port': link['target']
+            'source': link['source'],
+            'target': link['target']
         });
     });
     /*
@@ -343,12 +338,7 @@ function do_layout() {
         height = +(svg.style('height').replace('px', ''));
     center_frc.x(width / 2)
         .y(height / 2);
-    if (animated) {
-        do_animated_layout();
-    }
-    else {
         do_static_layout();
-    }
 }
 function do_static_layout() {
     /*
@@ -363,62 +353,19 @@ function do_static_layout() {
         center_frc = topo['center_force'],
         charge_frc = topo['charge_force'],
         link_frc = topo['link_force'];
-    if (!animated) {
         simulation
             .force('center', center_frc)
             .force('charge', charge_frc)
             .force('link', link_frc);
-    }
     simulation.alpha(1);
     for (var i = 0, n = Math.ceil(Math.log(simulation.alphaMin()) / Math.log(1 - simulation.alphaDecay())); i < n; ++i) {
         simulation.tick();
     }
-    if (!animated) {
-        simulation
-            .force('center', null)
-            .force('charge', null)
-            .force('link', null);
-    }
+    simulation
+        .force('center', null)
+        .force('charge', null)
+        .force('link', null);
     do_one_tick();
-}
-function do_animated_layout() {
-    /*
-        deregister drag event.
-        register force
-        call simulation.tick() several times
-        call ticked()   -> draw finished layout
-        deregister force
-        register drag event again.
-    */
-    var simulation = topo['simulation'],
-        center_frc = topo['center_force'],
-        charge_frc = topo['charge_force'],
-        link_frc = topo['link_force'];
-    if (!animated) {
-        simulation
-            .force('center', center_frc)
-            .force('charge', charge_frc)
-            .force('link', link_frc);
-    }
-    simulation.alpha(1)
-    var ticks_per_render = 5;
-    window.requestAnimationFrame(function render() {
-        for (var i = 0; i < ticks_per_render; i++) {
-            simulation.tick();
-        }
-        do_one_tick();
-        if (simulation.alpha() > simulation.alphaMin()) {
-            window.requestAnimationFrame(render);
-        }
-        else {
-            if (!animated) {
-                simulation
-                    .force('center', null)
-                    .force('charge', null)
-                    .force('link', null);
-            }
-        }
-    });
 }
 function do_tick(link_sel, node_sel, desc_sel) {
     /*
@@ -466,25 +413,3 @@ function do_one_tick() {
             .selectAll('g.desc_container');
     do_tick(link, node, desc);
 }
-d3.select('button#load_btn').on('click', function () {
-    load();
-});
-d3.select('button#animated_btn').on('click', function () {
-    var me = d3.select(this);
-    animated = !animated;
-    if (animated) {
-        topo['simulation']
-            .force('center', topo['center_force'])
-            .force('charge', topo['charge_force'])
-            .force('link', topo['link_force']);
-        do_animated_layout();
-        me.text('Animated');
-    }
-    else {
-        topo['simulation']
-            .force('center', null)
-            .force('charge', null)
-            .force('link', null);
-        me.text('Static');
-    }
-});
