@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <LangVersion>7.1</LangVersion>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+      <ProjectReference Include="..\..\..\..\src\csharp\GossipMesh.Core\GossipMesh.Core.csproj" />
+      <ProjectReference Include="..\Greeter\Greeter.csproj" />
+  </ItemGroup>
+</Project>

@@ -39,7 +39,7 @@ namespace GossipMesh.LoadBalancing
         {
             if (serviceEndPoints.TryGetValue(serviceType, out var endPoints))
             {
-                var endPoint = endPoints[random.Next(0, endPoints.Count() - 1)];
+                var endPoint = endPoints[random.Next(0, endPoints.Count())];
 
                 if (!serviceClients.TryGetValue(endPoint, out var serviceClientObject))
                 {

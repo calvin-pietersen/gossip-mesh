@@ -1,6 +1,6 @@
 using System;
 using Microsoft.Extensions.Logging;
-namespace GossipMesh.Example
+namespace Greeter
 {
     public class ConsoleLoggerProvider : ILoggerProvider
     {

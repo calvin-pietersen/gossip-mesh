@@ -7,9 +7,10 @@ using GossipMesh.LoadBalancing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Grpc.Core;
+using Greeter;
 using Helloworld;
 
-namespace GossipMesh.Example
+namespace GreeterClient
 {
     class Program
     {
@@ -18,16 +19,12 @@ namespace GossipMesh.Example
             var listenEndPoint = IPEndPointFromString(args[0]);
             var seeds = args.Skip(1).Select(IPEndPointFromString).ToArray();
 
-            var loggerFactory = new LoggerFactory();
-            loggerFactory.AddProvider(new ConsoleLoggerProvider());
-            var logger = loggerFactory
-                .CreateLogger<Program>();
+            var logger = CreateLogger();
 
             var loadBalancer = new RandomLoadBalancer();
             loadBalancer.RegisterServiceClientFactory(2, new GreeterClientFactory());
 
             var gossiper = StartGossiper(listenEndPoint, seeds, new IMemberListener[] { loadBalancer }, logger);
-            var server = StartGrpcServer(listenEndPoint);
 
             while (true)
             {
@@ -36,7 +33,7 @@ namespace GossipMesh.Example
                     Console.Write("Please enter your name: ");
                     var name = Console.ReadLine();
 
-                    Greeter.GreeterClient client = loadBalancer.GetServiceClient<Greeter.GreeterClient>(2);
+                    Helloworld.Greeter.GreeterClient client = loadBalancer.GetServiceClient<Helloworld.Greeter.GreeterClient>(2);
 
                     var request = new HelloRequest
                     {
@@ -44,7 +41,7 @@ namespace GossipMesh.Example
                     };
 
                     var response = client.SayHello(request);
-                    Console.WriteLine("{response}", response.Message);
+                    Console.WriteLine(response.Message);
                 }
 
                 catch (Exception ex)
@@ -52,10 +49,15 @@ namespace GossipMesh.Example
                     logger.LogError(ex.Message);
                 }
             }
-
-            await server.ShutdownAsync();
         }
 
+        private static ILogger CreateLogger()
+        {
+            var loggerFactory = new LoggerFactory();
+            loggerFactory.AddProvider(new ConsoleLoggerProvider());
+            return loggerFactory
+                .CreateLogger<Program>();
+        }
         private static Gossiper StartGossiper(IPEndPoint listenEndPoint, IPEndPoint[] seeds, IMemberListener[] memberListeners, ILogger logger)
         {
             var options = new GossiperOptions
@@ -66,7 +68,7 @@ namespace GossipMesh.Example
                 NumberOfIndirectEndpoints = 2,
                 ListenPort = (ushort)listenEndPoint.Port,
                 MemberIP = listenEndPoint.Address,
-                Service = (byte)2,
+                Service = (byte)3,
                 ServicePort = (ushort)listenEndPoint.Port,
                 SeedMembers = seeds
             };
@@ -75,19 +77,6 @@ namespace GossipMesh.Example
             gossiper.Start();
 
             return gossiper;
-        }
-
-        private static Server StartGrpcServer(IPEndPoint serverEndPoint)
-        {
-            Server server = new Server
-            {
-                Services = { Greeter.BindService(new GreeterImpl()) },
-                Ports = { new ServerPort(serverEndPoint.Address.ToString(), serverEndPoint.Port, ServerCredentials.Insecure) }
-            };
-
-            server.Start();
-
-            return server;
         }
         private static IPEndPoint IPEndPointFromString(string ipEndPointString)
         {
