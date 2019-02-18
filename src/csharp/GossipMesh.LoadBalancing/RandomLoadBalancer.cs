@@ -10,8 +10,8 @@ namespace GossipMesh.LoadBalancing
     public class RandomLoadBalancer : ILoadBalancer, IMemberListener
     {
         private readonly Dictionary<byte, IServiceClientFactory> _serviceClientFactories = new Dictionary<byte, IServiceClientFactory>();
-        ConcurrentDictionary<byte, List<IPEndPoint>> serviceEndPoints = new ConcurrentDictionary<byte, List<IPEndPoint>>();
-        ConcurrentDictionary<IPEndPoint, IServiceClient> serviceClients = new ConcurrentDictionary<IPEndPoint, IServiceClient>();
+        private readonly object _serviceToServiceClientsLocker = new object();
+        Dictionary<byte, List<IServiceClient>> _serviceToServiceClients = new Dictionary<byte, List<IServiceClient>>();
 
         Random random = new Random();
 
@@ -22,58 +22,55 @@ namespace GossipMesh.LoadBalancing
 
         public void MemberCallback(Member member)
         {
-            List<IPEndPoint> endPoints;
-
-            if (!serviceEndPoints.TryGetValue(member.Service, out endPoints))
+            IServiceClientFactory serviceClientFactory;
+            if (!_serviceClientFactories.TryGetValue(member.Service, out serviceClientFactory))
             {
-                endPoints = new List<IPEndPoint>();
-                serviceEndPoints.TryAdd(member.Service, endPoints);
+                return;
             }
 
-            var endPoint = new IPEndPoint(member.IP, member.ServicePort);
-            lock (endPoints)
+            lock (_serviceToServiceClientsLocker)
             {
-                var containsEndPoint = endPoints.Contains(endPoint);
-                if (!containsEndPoint && member.State <= MemberState.Suspicious)
+                var newServiceToServiceClients = new Dictionary<byte, List<IServiceClient>>(_serviceToServiceClients);
+
+                List<IServiceClient> serviceClients;
+                if (!newServiceToServiceClients.TryGetValue(member.Service, out serviceClients))
                 {
-                    endPoints.Add(endPoint);
+                    serviceClients = new List<IServiceClient>();
                 }
 
-                else if (containsEndPoint && member.State >= MemberState.Dead)
+                List<IServiceClient> newServiceClients;
+                var serviceClient = serviceClients.FirstOrDefault(s => s.ServiceEndPoint.Address.Equals(member.IP) && s.ServiceEndPoint.Port == member.ServicePort);
+                if (serviceClient == null && member.State <= MemberState.Suspicious)
                 {
-                    endPoints.Remove(endPoint);
+                    newServiceClients = new List<IServiceClient>(serviceClients);
+                    newServiceClients.Add(serviceClientFactory.CreateServiceClient(new IPEndPoint(member.IP, member.ServicePort)));
                 }
+
+                else if (serviceClient != null && member.State >= MemberState.Dead)
+                {
+                    newServiceClients = new List<IServiceClient>(serviceClients);
+                    newServiceClients.Remove(serviceClient);
+                }
+
+                else
+                {
+                    return;
+                }
+
+                newServiceToServiceClients[member.Service] = newServiceClients;
+                _serviceToServiceClients = newServiceToServiceClients;
             }
         }
 
         public T GetServiceClient<T>(byte serviceType) where T : IServiceClient
         {
-            if (serviceEndPoints.TryGetValue(serviceType, out var endPoints))
+            if (_serviceToServiceClients.TryGetValue(serviceType, out var serviceClients) && serviceClients.Any())
             {
-                IPEndPoint endPoint;
-                lock (endPoints)
-                {
-                    endPoint = endPoints[random.Next(0, endPoints.Count())];
-                }
-
-                if (!serviceClients.TryGetValue(endPoint, out var serviceClient))
-                {
-                    if (_serviceClientFactories.TryGetValue(serviceType, out var serviceClientFactory))
-                    {
-                        serviceClient = serviceClientFactory.CreateServiceClient(endPoint);
-                        serviceClients.TryAdd(endPoint, serviceClient);
-                    }
-
-                    else
-                    {
-                        throw new Exception("no service client factory registered");
-                    }
-                }
-
+                var serviceClient = serviceClients[random.Next(0, serviceClients.Count)];
                 return (T)serviceClient;
             }
 
-            throw new Exception("Could not find service endpoint.");
+            throw new Exception("No service clients available");
         }
     }
 }
