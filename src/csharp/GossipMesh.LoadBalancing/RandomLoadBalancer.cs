@@ -9,14 +9,15 @@ namespace GossipMesh.LoadBalancing
 {
     public class RandomLoadBalancer : ILoadBalancer, IMemberListener
     {
-        ConcurrentDictionary<byte, IServiceClientFactory> serviceClientFactories = new ConcurrentDictionary<byte, IServiceClientFactory>();
+        private readonly Dictionary<byte, IServiceClientFactory> _serviceClientFactories = new Dictionary<byte, IServiceClientFactory>();
         ConcurrentDictionary<byte, List<IPEndPoint>> serviceEndPoints = new ConcurrentDictionary<byte, List<IPEndPoint>>();
         ConcurrentDictionary<IPEndPoint, IServiceClient> serviceClients = new ConcurrentDictionary<IPEndPoint, IServiceClient>();
 
         Random random = new Random();
 
-        public RandomLoadBalancer()
+        public RandomLoadBalancer(Dictionary<byte, IServiceClientFactory> serviceClientFactories)
         {
+            _serviceClientFactories = serviceClientFactories;
         }
 
         public void MemberCallback(Member member)
@@ -57,7 +58,7 @@ namespace GossipMesh.LoadBalancing
 
                 if (!serviceClients.TryGetValue(endPoint, out var serviceClient))
                 {
-                    if (serviceClientFactories.TryGetValue(serviceType, out var serviceClientFactory))
+                    if (_serviceClientFactories.TryGetValue(serviceType, out var serviceClientFactory))
                     {
                         serviceClient = serviceClientFactory.CreateServiceClient(endPoint);
                         serviceClients.TryAdd(endPoint, serviceClient);
@@ -73,11 +74,6 @@ namespace GossipMesh.LoadBalancing
             }
 
             throw new Exception("Could not find service endpoint.");
-        }
-
-        public void RegisterServiceClientFactory(byte serviceType, IServiceClientFactory serviceClientFactory)
-        {
-            serviceClientFactories.TryAdd(serviceType, serviceClientFactory);
         }
     }
 }

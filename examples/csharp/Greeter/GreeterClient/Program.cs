@@ -10,6 +10,7 @@ using Grpc.Core;
 using Greeter;
 using Helloworld;
 using System.Diagnostics;
+using System.Collections.Generic;
 
 namespace GreeterClient
 {
@@ -22,9 +23,7 @@ namespace GreeterClient
 
             var logger = CreateLogger();
 
-            var loadBalancer = new RandomLoadBalancer();
-            loadBalancer.RegisterServiceClientFactory(2, new GreeterServiceClientFactory());
-
+            var loadBalancer = CreateLoadBalancer();
             var gossiper = StartGossiper(listenEndPoint, seeds, new IMemberListener[] { loadBalancer }, logger);
 
             var stopwatch = new Stopwatch();
@@ -58,6 +57,16 @@ namespace GreeterClient
             loggerFactory.AddProvider(new ConsoleLoggerProvider());
             return loggerFactory
                 .CreateLogger<Program>();
+        }
+
+        private static RandomLoadBalancer CreateLoadBalancer()
+        {
+            var serviceClientFactories = new Dictionary<byte, IServiceClientFactory>
+            {
+                { 2, new GreeterServiceClientFactory()}
+            };
+
+            return new RandomLoadBalancer(serviceClientFactories);
         }
         private static Gossiper StartGossiper(IPEndPoint listenEndPoint, IPEndPoint[] seeds, IMemberListener[] memberListeners, ILogger logger)
         {
