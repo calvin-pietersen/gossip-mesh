@@ -11,9 +11,9 @@ namespace GossipMesh.LoadBalancing
     {
         private readonly Dictionary<byte, IServiceClientFactory> _serviceClientFactories = new Dictionary<byte, IServiceClientFactory>();
         private readonly object _serviceToServiceClientsLocker = new object();
-        Dictionary<byte, List<IServiceClient>> _serviceToServiceClients = new Dictionary<byte, List<IServiceClient>>();
+        private Dictionary<byte, List<IServiceClient>> _serviceToServiceClients = new Dictionary<byte, List<IServiceClient>>();
 
-        Random random = new Random();
+        private readonly Random _random = new Random();
 
         public RandomLoadBalancer(Dictionary<byte, IServiceClientFactory> serviceClientFactories)
         {
@@ -66,7 +66,7 @@ namespace GossipMesh.LoadBalancing
         {
             if (_serviceToServiceClients.TryGetValue(serviceType, out var serviceClients) && serviceClients.Any())
             {
-                var serviceClient = serviceClients[random.Next(0, serviceClients.Count)];
+                var serviceClient = serviceClients[_random.Next(0, serviceClients.Count)];
                 return (T)serviceClient;
             }
 
