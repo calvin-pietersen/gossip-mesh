@@ -18,8 +18,8 @@ namespace GreeterServer
             var seeds = args.Skip(1).Select(IPEndPointFromString).ToArray();
 
             var logger = CreateLogger();
-            var gossiper = StartGossiper(listenEndPoint, seeds, logger);
             var server = StartGrpcServer(listenEndPoint, logger);
+            var gossiper = StartGossiper(listenEndPoint, seeds, logger);
 
             Console.ReadKey();
 
