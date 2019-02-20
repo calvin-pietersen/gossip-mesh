@@ -16,6 +16,11 @@ namespace GossipMesh.Seed.Stores
 
         public bool Add(MemberEvent memberEvent)
         {
+            if (memberEvent.SenderGossipEndPoint.Address == memberEvent.GossipEndPoint.Address && memberEvent.SenderGossipEndPoint.Port == memberEvent.GossipEndPoint.Port)
+            {
+                return false;
+            }
+
             var wasAdded = true;
 
             lock (_memberEventsLocker)
@@ -58,42 +63,6 @@ namespace GossipMesh.Seed.Stores
                 return _memberEvents
                         .SelectMany(senderMemberEvents => senderMemberEvents.Value
                             .SelectMany(memberEvents => memberEvents.Value)).ToArray();
-            }
-        }
-
-        public Graph GetGraph()
-        {
-            lock (_memberEventsLocker)
-            {
-                var nodes = _memberEvents
-                                .Select(member => _memberEvents.Values
-                                                    .Select(senderMemberEvents => senderMemberEvents.GetValueOrDefault(member.Key, null)?.Last())
-                                                    .Where(m => m != null)
-                                                    .OrderBy(m => m.Generation)
-                                                    .ThenBy(m => m.State)
-                                                    .Last())
-                                .Select(latestMemberEvent => new Graph.Node
-                                {
-                                    Id = latestMemberEvent.GossipEndPoint,
-                                    Ip = latestMemberEvent.IP,
-                                    State = latestMemberEvent.State,
-                                    Generation = latestMemberEvent.Generation,
-                                    Service = latestMemberEvent.Service,
-                                    ServicePort = latestMemberEvent.ServicePort
-                                }).ToArray();
-
-                var links = _memberEvents
-                                .SelectMany(senderMemberEvents => senderMemberEvents.Value
-                                    .Where(memberEvents => !senderMemberEvents.Key.Equals(memberEvents.Key))
-                                    .Select(memberEvents =>
-                                        new Graph.Link { Source = senderMemberEvents.Key, Target = memberEvents.Key }))
-                                .Distinct()
-                                .ToArray();
-                return new Graph
-                {
-                    Nodes = nodes,
-                    Links = links
-                };
             }
         }
     }

@@ -24,9 +24,12 @@ connection.on("InitializationMessage", function (graphData, memberEvents) {
 
 });
 
-connection.on("MemberStateUpdatedMessage", function (graphData, memberEvents) {
-    load(graphData);
+connection.on("MemberEventsMessage", function (memberEvents) {
     addMemberEventsToTable(memberEvents);
+});
+
+connection.on("MemberGraphUpdatedMessage", function (graphData) {
+    load(graphData);
 });
 
 connection.start().catch(function (err) {

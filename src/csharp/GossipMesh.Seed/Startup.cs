@@ -38,6 +38,7 @@ namespace GossipMesh.Seed
                 option.PayloadSerializerSettings.Converters.Add(new DateTimeConverter());
             });
 
+            services.AddSingleton<IMemberGraphStore, MemberGraphStore>();
             services.AddSingleton<IMemberEventsStore, MemberEventsStore>();
             services.AddSingleton<IMemberEventsListener, MemberEventsListener>();
         }
