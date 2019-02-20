@@ -13,7 +13,7 @@ namespace GossipMesh.Core
     {
         private readonly Member _self;
         private readonly GossiperOptions _options;
-        private readonly IEnumerable<IMemberEventListener> _memberEventListeners;
+        private readonly IEnumerable<IMemberEventsListener> _memberEventsListeners;
         private readonly IEnumerable<IMemberListener> _memberListeners;
         private readonly object _memberLocker = new Object();
         private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
@@ -27,10 +27,10 @@ namespace GossipMesh.Core
 
         private readonly ILogger _logger;
 
-        public Gossiper(GossiperOptions options, IEnumerable<IMemberEventListener> memberEventListeners, IEnumerable<IMemberListener> memberListeners, ILogger logger)
+        public Gossiper(GossiperOptions options, IEnumerable<IMemberEventsListener> memberEventsListeners, IEnumerable<IMemberListener> memberListeners, ILogger logger)
         {
             _options = options;
-            _memberEventListeners = memberEventListeners;
+            _memberEventsListeners = memberEventsListeners;
             _memberListeners = memberListeners;
             _logger = logger;
 
@@ -40,7 +40,7 @@ namespace GossipMesh.Core
         public void Start()
         {
             _logger.LogInformation("Gossip.Mesh starting Gossiper on {GossipEndPoint}", _self.GossipEndPoint);
-            PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
+            PushToMemberEventsListeners(new MemberEvent[] { new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self) });
 
             _udpClient = CreateUdpClient(_self.GossipEndPoint);
 
@@ -284,10 +284,11 @@ namespace GossipMesh.Core
 
         private void UpdateMembers(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Stream stream)
         {
+            var memberEvents = new List<MemberEvent>();
             while (stream.Position < stream.Length)
             {
                 var memberEvent = MemberEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream);
-                PushToMemberEventListeners(memberEvent);
+                memberEvents.Add(memberEvent);
 
                 // we don't add ourselves to the member list
                 if (!EndPointsMatch(memberEvent.GossipEndPoint, _self.GossipEndPoint))
@@ -302,8 +303,8 @@ namespace GossipMesh.Core
                             member.Update(memberEvent);
                             _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
 
-                            PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                             PushToMemberListeners(member);
+                            memberEvents.Add(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                         }
 
                         else if (member == null)
@@ -312,8 +313,8 @@ namespace GossipMesh.Core
                             _members.Add(member.GossipEndPoint, member);
                             _logger.LogInformation("Gossip.Mesh member added {member}", member);
 
-                            PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                             PushToMemberListeners(member);
+                            memberEvents.Add(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                         }
                     }
 
@@ -333,9 +334,11 @@ namespace GossipMesh.Core
                         _logger.LogInformation("Gossip.Mesh received a memberEvent: {memberEvent} about self. Upped generation: {generation}", memberEvent, _self.Generation);
                     }
 
-                    PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
+                    memberEvents.Add(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
                 }
             }
+
+            PushToMemberEventsListeners(memberEvents);
         }
 
         private void WriteMembers(Stream stream, Member[] members)
@@ -425,14 +428,15 @@ namespace GossipMesh.Core
                     member.Update(MemberState.Suspicious);
                     _logger.LogInformation("Gossip.Mesh suspicious member {member}", member);
 
-                    PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                     PushToMemberListeners(member);
+                    PushToMemberEventsListeners(new MemberEvent[] { new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member) });
                 }
             }
         }
 
         private void HandleDeadMembers()
         {
+            var memberEvents = new List<MemberEvent>();
             lock (_awaitingAcksLocker)
             {
                 foreach (var awaitingAck in _awaitingAcks.ToArray())
@@ -447,8 +451,8 @@ namespace GossipMesh.Core
                                 member.Update(MemberState.Dead);
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
 
-                                PushToMemberEventListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                                 PushToMemberListeners(member);
+                                memberEvents.Add(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                             }
                         }
 
@@ -457,6 +461,8 @@ namespace GossipMesh.Core
                     }
                 }
             }
+
+            PushToMemberEventsListeners(memberEvents);
 
             lock (_pruneMembersLocker)
             {
@@ -535,15 +541,12 @@ namespace GossipMesh.Core
             _lastProtocolPeriod = DateTime.Now;
         }
 
-        private void PushToMemberEventListeners(MemberEvent memberEvent)
+        private void PushToMemberEventsListeners(IEnumerable<MemberEvent> memberEvents)
         {
-            Task.Run(() =>
+            foreach (var listener in _memberEventsListeners)
             {
-                foreach (var listener in _memberEventListeners)
-                {
-                    listener.MemberEventCallback(memberEvent);
-                }
-            });
+                listener.MemberEventsCallback(memberEvents).ConfigureAwait(false);
+            }
         }
 
         private void PushToMemberListeners(Member member)

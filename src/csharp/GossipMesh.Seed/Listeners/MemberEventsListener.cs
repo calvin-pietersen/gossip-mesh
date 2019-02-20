@@ -7,27 +7,30 @@ using Microsoft.AspNetCore.SignalR;
 using GossipMesh.Seed.Hubs;
 using Microsoft.Extensions.Logging;
 using GossipMesh.Seed.Stores;
+using System.Threading.Tasks;
 
 namespace GossipMesh.Seed.Listeners
 {
-    public class MembersListener : IMemberEventListener
+    public class MemberEventsListener : IMemberEventsListener
     {
         private readonly IMemberEventsStore _memberEventsStore;
         private readonly IHubContext<MembersHub> _membersHubContext;
         private readonly ILogger _logger;
 
-        public MembersListener(IMemberEventsStore memberEventsStore, IHubContext<MembersHub> membersHubContext, ILogger<Startup> logger)
+        public MemberEventsListener(IMemberEventsStore memberEventsStore, IHubContext<MembersHub> membersHubContext, ILogger<Startup> logger)
         {
             _memberEventsStore = memberEventsStore;
             _membersHubContext = membersHubContext;
             _logger = logger;
         }
 
-        public void MemberEventCallback(MemberEvent memberEvent)
+        public async Task MemberEventsCallback(IEnumerable<MemberEvent> memberEvents)
         {
-            if (_memberEventsStore.Add(memberEvent))
+            var newMemberEvents = memberEvents.Where(m => _memberEventsStore.Add(m));
+
+            if (newMemberEvents.Any())
             {
-                _membersHubContext.Clients.All.SendAsync("MemberStateUpdatedMessage", _memberEventsStore.GetGraph(), memberEvent).ConfigureAwait(false);
+                await _membersHubContext.Clients.All.SendAsync("MemberStateUpdatedMessage", _memberEventsStore.GetGraph(), newMemberEvents).ConfigureAwait(false);
             }
         }
     }

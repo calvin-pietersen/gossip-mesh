@@ -83,7 +83,7 @@ namespace GreeterClient
                 SeedMembers = seeds
             };
 
-            var gossiper = new Gossiper(options, new IMemberEventListener[0], memberListeners, logger);
+            var gossiper = new Gossiper(options, Enumerable.Empty<IMemberEventsListener>(), memberListeners, logger);
             gossiper.Start();
 
             return gossiper;

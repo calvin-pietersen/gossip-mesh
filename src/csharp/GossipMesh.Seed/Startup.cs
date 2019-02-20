@@ -39,10 +39,10 @@ namespace GossipMesh.Seed
             });
 
             services.AddSingleton<IMemberEventsStore, MemberEventsStore>();
-            services.AddSingleton<IMemberEventListener, MembersListener>();
+            services.AddSingleton<IMemberEventsListener, MemberEventsListener>();
         }
 
-        public void Configure(ILogger<Startup> logger, IEnumerable<IMemberEventListener> memberEventListeners, IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(ILogger<Startup> logger, IEnumerable<IMemberEventsListener> memberEventListeners, IApplicationBuilder app, IHostingEnvironment env)
         {
             app.UseDefaultFiles();
             app.UseStaticFiles();

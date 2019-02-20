@@ -1,9 +1,11 @@
+using System.Collections.Generic;
 using System.Net;
+using System.Threading.Tasks;
 
 namespace GossipMesh.Core
 {
-    public interface IMemberEventListener
+    public interface IMemberEventsListener
     {
-        void MemberEventCallback(MemberEvent MemberEvent);
+        Task MemberEventsCallback(IEnumerable<MemberEvent> memberEvents);
     }
 }

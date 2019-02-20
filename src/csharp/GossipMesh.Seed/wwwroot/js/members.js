@@ -20,23 +20,28 @@ var connection = new signalR.HubConnectionBuilder().withUrl("/membersHub").build
 
 connection.on("InitializationMessage", function (graphData, memberEvents) {
     load(graphData);
+    addMemberEventsToTable(memberEvents);
 
+});
+
+connection.on("MemberStateUpdatedMessage", function (graphData, memberEvents) {
+    load(graphData);
+    addMemberEventsToTable(memberEvents);
+});
+
+connection.start().catch(function (err) {
+    return console.error(err.toString());
+});
+
+function addMemberEventsToTable(memberEvents)
+{
     var dataSet = [];
     for (var i = 0, len = memberEvents.length; i < len; i++) {
        dataSet.push(memberEventToRecord(memberEvents[i]));
     }
 
     dataTable.rows.add(dataSet).draw();
-});
-
-connection.on("MemberStateUpdatedMessage", function (graphData, memberEvent) {
-    load(graphData);
-    dataTable.row.add(memberEventToRecord(memberEvent)).draw();
-});
-
-connection.start().catch(function (err) {
-    return console.error(err.toString());
-});
+}
 
 function memberEventToRecord(memberEvent) {
     return [
