@@ -19,6 +19,8 @@ namespace GossipMesh.Core
         private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
         private readonly object _awaitingAcksLocker = new Object();
         private volatile Dictionary<IPEndPoint, DateTime> _awaitingAcks = new Dictionary<IPEndPoint, DateTime>();
+        private readonly object _deadMembersLocker = new Object();
+        private volatile Dictionary<IPEndPoint, DateTime> _deadMembers = new Dictionary<IPEndPoint, DateTime>();
         private readonly object _pruneMembersLocker = new Object();
         private volatile Dictionary<IPEndPoint, DateTime> _pruneMembers = new Dictionary<IPEndPoint, DateTime>();
         private DateTime _lastProtocolPeriod = DateTime.Now;
@@ -166,7 +168,9 @@ namespace GossipMesh.Core
                         }
                     }
 
+                    HandleAckTimeOutMembers();
                     HandleDeadMembers();
+                    HandlePruneMembers();
                 }
 
                 catch (Exception ex)
@@ -434,7 +438,7 @@ namespace GossipMesh.Core
             }
         }
 
-        private void HandleDeadMembers()
+        private void HandleAckTimeOutMembers()
         {
             var memberEvents = new List<MemberEvent>();
             lock (_awaitingAcksLocker)
@@ -456,14 +460,40 @@ namespace GossipMesh.Core
                             }
                         }
 
-                        AddPruneMember(awaitingAck.Key);
+                        AddDeadMember(awaitingAck.Key);
                         _awaitingAcks.Remove(awaitingAck.Key);
                     }
                 }
             }
 
             PushToMemberEventsListeners(memberEvents);
+        }
 
+        private void HandleDeadMembers()
+        {
+            lock (_deadMembersLocker)
+            {
+                foreach (var deadMember in _deadMembers.ToArray())
+                {
+                    if (deadMember.Value < DateTime.Now)
+                    {
+                        lock (_memberLocker)
+                        {
+                            if (_members.TryGetValue(deadMember.Key, out var member) && (member.State == MemberState.Dead || member.State == MemberState.Left))
+                            {
+                                AddPruneMember(deadMember.Key);
+                                _logger.LogInformation("Gossip.Mesh dead member moved for pruning {member}", member);
+                            }
+                        }
+
+                        _deadMembers.Remove(deadMember.Key);
+                    }
+                }
+            }
+        }
+
+        private void HandlePruneMembers()
+        {
             lock (_pruneMembersLocker)
             {
                 foreach (var pruneMember in _pruneMembers.ToArray())
@@ -496,13 +526,24 @@ namespace GossipMesh.Core
             }
         }
 
+        private void AddDeadMember(IPEndPoint gossipEndPoint)
+        {
+            lock (_deadMembersLocker)
+            {
+                if (!_deadMembers.ContainsKey(gossipEndPoint))
+                {
+                    _deadMembers.Add(gossipEndPoint, DateTime.Now.AddMilliseconds(_options.ProtocolPeriodMilliseconds * 240));
+                }
+            }
+        }
+
         private void AddPruneMember(IPEndPoint gossipEndPoint)
         {
             lock (_pruneMembersLocker)
             {
                 if (!_pruneMembers.ContainsKey(gossipEndPoint))
                 {
-                    _pruneMembers.Add(gossipEndPoint, DateTime.Now.AddMilliseconds(_options.ProtocolPeriodMilliseconds * 60));
+                    _pruneMembers.Add(gossipEndPoint, DateTime.Now.AddMilliseconds(_options.ProtocolPeriodMilliseconds * 600));
                 }
             }
         }
