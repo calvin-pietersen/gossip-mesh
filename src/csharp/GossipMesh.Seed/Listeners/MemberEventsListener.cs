@@ -28,15 +28,23 @@ namespace GossipMesh.Seed.Listeners
 
         public async Task MemberEventsCallback(IEnumerable<MemberEvent> memberEvents)
         {
-            var newMemberEvents = memberEvents.Where(m => _memberEventsStore.Add(m));
-            if (newMemberEvents.Any())
+            try
             {
-                await _membersHubContext.Clients.All.SendAsync("MemberEventsMessage", newMemberEvents).ConfigureAwait(false);
+                var newMemberEvents = memberEvents.Where(m => _memberEventsStore.Add(m)).ToArray();
+                if (newMemberEvents.Any())
+                {
+                    await _membersHubContext.Clients.All.SendAsync("MemberEventsMessage", newMemberEvents).ConfigureAwait(false);
+                }
+
+                if (_memberGraphStore.Update(memberEvents))
+                {
+                    await _membersHubContext.Clients.All.SendAsync("MemberGraphUpdatedMessage", _memberGraphStore.GetGraph()).ConfigureAwait(false);
+                }
             }
 
-            if (_memberGraphStore.Update(memberEvents))
+            catch (Exception ex)
             {
-                await _membersHubContext.Clients.All.SendAsync("MemberGraphUpdatedMessage", _memberGraphStore.GetGraph()).ConfigureAwait(false);
+                _logger.LogError(ex, ex.Message);
             }
         }
     }

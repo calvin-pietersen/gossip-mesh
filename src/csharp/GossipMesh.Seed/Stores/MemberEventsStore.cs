@@ -16,7 +16,7 @@ namespace GossipMesh.Seed.Stores
 
         public bool Add(MemberEvent memberEvent)
         {
-            if (memberEvent.SenderGossipEndPoint.Address == memberEvent.GossipEndPoint.Address && memberEvent.SenderGossipEndPoint.Port == memberEvent.GossipEndPoint.Port)
+            if (memberEvent.SenderGossipEndPoint.Address.Equals(memberEvent.GossipEndPoint.Address) && memberEvent.SenderGossipEndPoint.Port == memberEvent.GossipEndPoint.Port)
             {
                 return false;
             }
@@ -51,9 +51,9 @@ namespace GossipMesh.Seed.Stores
                 {
                     senderMemberEvents.Add(memberEvent.GossipEndPoint, new List<MemberEvent> { memberEvent });
                 }
-
-                return wasAdded;
             }
+
+            return wasAdded;
         }
 
         public MemberEvent[] GetAll()

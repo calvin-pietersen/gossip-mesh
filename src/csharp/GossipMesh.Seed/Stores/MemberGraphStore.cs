@@ -20,12 +20,11 @@ namespace GossipMesh.Seed.Stores
             var wasUpdated = false;
             foreach (var memberEvent in memberEvents)
             {
-                var serviceIpEndPoint = new IPEndPoint(memberEvent.IP, memberEvent.ServicePort);
 
                 lock (_memberGraphLocker)
                 {
                     Graph.Node node;
-                    if (!_nodes.TryGetValue(serviceIpEndPoint, out node))
+                    if (!_nodes.TryGetValue(memberEvent.GossipEndPoint, out node))
                     {
                         node = new Graph.Node
                         {
@@ -37,7 +36,7 @@ namespace GossipMesh.Seed.Stores
                             ServicePort = memberEvent.ServicePort
                         };
 
-                        _nodes.Add(serviceIpEndPoint, node);
+                        _nodes.Add(memberEvent.GossipEndPoint, node);
                         wasUpdated = true;
                     }
 
@@ -54,6 +53,7 @@ namespace GossipMesh.Seed.Stores
                             ServicePort = memberEvent.ServicePort
                         };
 
+                        _nodes[memberEvent.GossipEndPoint] = node;
                         wasUpdated = true;
                     }
 
