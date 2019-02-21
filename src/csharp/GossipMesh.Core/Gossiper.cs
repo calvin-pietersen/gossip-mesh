@@ -42,7 +42,8 @@ namespace GossipMesh.Core
         public void Start()
         {
             _logger.LogInformation("Gossip.Mesh starting Gossiper on {GossipEndPoint}", _self.GossipEndPoint);
-            PushToMemberEventsListeners(new MemberEvent[] { new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self) });
+
+            PushToMemberListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
 
             _udpClient = CreateUdpClient(_self.GossipEndPoint);
 
