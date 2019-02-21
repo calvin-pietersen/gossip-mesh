@@ -307,8 +307,9 @@ namespace GossipMesh.Core
                             member.Update(memberEvent);
                             _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
 
-                            PushToMemberListeners(member);
-                            memberEvents.Add(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
+                            var selfMemberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
+                            PushToMemberListeners(selfMemberEvent);
+                            memberEvents.Add(selfMemberEvent);
                         }
 
                         else if (member == null)
@@ -317,8 +318,9 @@ namespace GossipMesh.Core
                             _members.Add(member.GossipEndPoint, member);
                             _logger.LogInformation("Gossip.Mesh member added {member}", member);
 
-                            PushToMemberListeners(member);
-                            memberEvents.Add(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
+                            var selfMemberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
+                            PushToMemberListeners(selfMemberEvent);
+                            memberEvents.Add(selfMemberEvent);
                         }
                     }
 
@@ -432,8 +434,9 @@ namespace GossipMesh.Core
                     member.Update(MemberState.Suspicious);
                     _logger.LogInformation("Gossip.Mesh suspicious member {member}", member);
 
-                    PushToMemberListeners(member);
-                    PushToMemberEventsListeners(new MemberEvent[] { new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member) });
+                    var memberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
+                    PushToMemberListeners(memberEvent);
+                    PushToMemberEventsListeners(new MemberEvent[] { memberEvent });
                 }
             }
         }
@@ -455,8 +458,9 @@ namespace GossipMesh.Core
                                 member.Update(MemberState.Dead);
                                 _logger.LogInformation("Gossip.Mesh dead member {member}", member);
 
-                                PushToMemberListeners(member);
-                                memberEvents.Add(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
+                                var memberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
+                                PushToMemberListeners(memberEvent);
+                                memberEvents.Add(memberEvent);
                             }
                         }
 
@@ -590,15 +594,12 @@ namespace GossipMesh.Core
             }
         }
 
-        private void PushToMemberListeners(Member member)
+        private void PushToMemberListeners(MemberEvent memberEvent)
         {
-            Task.Run(() =>
+            foreach (var listener in _memberListeners)
             {
-                foreach (var listener in _memberListeners)
-                {
-                    listener.MemberCallback(member);
-                }
-            });
+                listener.MemberUpdatedCallback(memberEvent).ConfigureAwait(false);
+            }
         }
 
         public void Dispose()

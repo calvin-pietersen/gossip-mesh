@@ -28,8 +28,9 @@ connection.on("MemberEventsMessage", function (memberEvents) {
     addMemberEventsToTable(memberEvents);
 });
 
-connection.on("MemberGraphUpdatedMessage", function (graphData) {
-    load(graphData);
+connection.on("NodeUpdatedMessage", function (node) {
+    //load(node);
+    console.log(node);
 });
 
 connection.start().catch(function (err) {

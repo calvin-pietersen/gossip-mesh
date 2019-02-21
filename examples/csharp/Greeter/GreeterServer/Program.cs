@@ -21,7 +21,8 @@ namespace GreeterServer
             var server = StartGrpcServer(listenEndPoint, logger);
             var gossiper = StartGossiper(listenEndPoint, seeds, logger);
 
-            Console.ReadKey();
+            await Task.Delay(-1);
+            //Console.ReadKey();
 
             await server.ShutdownAsync();
         }
