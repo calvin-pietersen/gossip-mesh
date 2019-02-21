@@ -1,7 +1,5 @@
 "use strict";
 
-initialize_topo();
-
 const dataTable = $('#realtime').DataTable({
     columns: [
         { title: 'Received'},
@@ -19,7 +17,7 @@ const dataTable = $('#realtime').DataTable({
 var connection = new signalR.HubConnectionBuilder().withUrl("/membersHub").build();
 
 connection.on("InitializationMessage", function (graphData, memberEvents) {
-    load(graphData);
+    //load(graphData);
     addMemberEventsToTable(memberEvents);
 
 });
