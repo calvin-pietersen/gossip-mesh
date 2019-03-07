@@ -38,7 +38,7 @@ namespace GreeterClient
                     var serviceClient = loadBalancer.GetServiceClient<GreeterServiceClient>(2);
 
                     var request = new HelloRequest{ Name = name};
-                    var response = serviceClient.Client.SayHello(request);
+                    var response = await serviceClient.Client.SayHelloAsync(request).ResponseAsync.ConfigureAwait(false);
 
                     stopwatch.Stop();
                     Console.WriteLine($"Response: {response.Message} From: {serviceClient.ServiceEndPoint} TimeTaken: {stopwatch.ElapsedMilliseconds}ms");

@@ -13,7 +13,6 @@ namespace GossipMesh.Seed.Stores
     {
         private readonly object _memberGraphLocker = new Object();
         private readonly Dictionary<IPEndPoint, Graph.Node> _nodes = new Dictionary<IPEndPoint, Graph.Node>();
-        private readonly Dictionary<string, Graph.Link> _links = new Dictionary<string, Graph.Link>();
 
         public bool TryAddOrUpdateNode(MemberEvent memberEvent, out Graph.Node node)
         {
@@ -63,8 +62,7 @@ namespace GossipMesh.Seed.Stores
             {
                 return new Graph
                 {
-                    Nodes = _nodes.Values.ToArray(),
-                    Links = _links.Values.ToArray()
+                    Nodes = _nodes.Values.ToArray()
                 };
             }
         }
