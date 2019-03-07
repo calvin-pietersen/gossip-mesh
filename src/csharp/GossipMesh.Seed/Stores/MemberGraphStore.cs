@@ -13,6 +13,7 @@ namespace GossipMesh.Seed.Stores
     {
         private readonly object _memberGraphLocker = new Object();
         private readonly Dictionary<IPEndPoint, Graph.Node> _nodes = new Dictionary<IPEndPoint, Graph.Node>();
+        private readonly Random _random = new Random();
 
         public bool TryAddOrUpdateNode(MemberEvent memberEvent, out Graph.Node node)
         {
@@ -28,7 +29,9 @@ namespace GossipMesh.Seed.Stores
                         State = memberEvent.State,
                         Generation = memberEvent.Generation,
                         Service = memberEvent.Service,
-                        ServicePort = memberEvent.ServicePort
+                        ServicePort = memberEvent.ServicePort,
+                        X = (byte)_random.Next(0, 255),
+                        Y = (byte)_random.Next(0, 255)
                     };
 
                     _nodes.Add(memberEvent.GossipEndPoint, node);
@@ -45,7 +48,9 @@ namespace GossipMesh.Seed.Stores
                         State = memberEvent.State,
                         Generation = memberEvent.Generation,
                         Service = memberEvent.Service,
-                        ServicePort = memberEvent.ServicePort
+                        ServicePort = memberEvent.ServicePort,
+                        X = node.X,
+                        Y = node.Y
                     };
 
                     _nodes[memberEvent.GossipEndPoint] = node;

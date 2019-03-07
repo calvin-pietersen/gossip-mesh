@@ -73,8 +73,8 @@ namespace GreeterClient
             var options = new GossiperOptions
             {
                 MaxUdpPacketBytes = 508,
-                ProtocolPeriodMilliseconds = 500,
-                AckTimeoutMilliseconds = 250,
+                ProtocolPeriodMilliseconds = 200,
+                AckTimeoutMilliseconds = 100,
                 NumberOfIndirectEndpoints = 2,
                 ListenPort = (ushort)listenEndPoint.Port,
                 MemberIP = listenEndPoint.Address,

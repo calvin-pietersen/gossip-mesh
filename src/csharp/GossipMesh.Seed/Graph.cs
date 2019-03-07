@@ -16,6 +16,9 @@ namespace GossipMesh.Seed
             public byte Generation { get; set; }
             public byte Service { get; set; }
             public ushort ServicePort { get; set; }
+
+            public byte X { get; set; }
+            public byte Y { get; set; }
         }
     }
 }
