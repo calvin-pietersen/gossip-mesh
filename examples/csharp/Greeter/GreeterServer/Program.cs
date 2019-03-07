@@ -21,7 +21,8 @@ namespace GreeterServer
             var server = StartGrpcServer(listenEndPoint, logger);
             var gossiper = StartGossiper(listenEndPoint, seeds, logger);
 
-            Console.ReadKey();
+            await Task.Delay(-1);
+            //Console.ReadKey();
 
             await server.ShutdownAsync();
         }
@@ -38,8 +39,8 @@ namespace GreeterServer
             var options = new GossiperOptions
             {
                 MaxUdpPacketBytes = 508,
-                ProtocolPeriodMilliseconds = 500,
-                AckTimeoutMilliseconds = 250,
+                ProtocolPeriodMilliseconds = 200,
+                AckTimeoutMilliseconds = 100,
                 NumberOfIndirectEndpoints = 2,
                 ListenPort = (ushort)listenEndPoint.Port,
                 MemberIP = listenEndPoint.Address,
