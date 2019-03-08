@@ -40,10 +40,11 @@ namespace GossipMesh.Seed
 
             services.AddSingleton<IMemberGraphStore, MemberGraphStore>();
             services.AddSingleton<IMemberEventsStore, MemberEventsStore>();
+            services.AddSingleton<IMemberListener, MemberListener>();
             services.AddSingleton<IMemberEventsListener, MemberEventsListener>();
         }
 
-        public void Configure(ILogger<Startup> logger, IEnumerable<IMemberEventsListener> memberEventListeners, IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(ILogger<Startup> logger, IEnumerable<IMemberListener> memberListeners, IEnumerable<IMemberEventsListener> memberEventListeners, IApplicationBuilder app, IHostingEnvironment env)
         {
             app.UseDefaultFiles();
             app.UseStaticFiles();
@@ -55,8 +56,8 @@ namespace GossipMesh.Seed
             var options = new GossiperOptions
             {
                 MaxUdpPacketBytes = 508,
-                ProtocolPeriodMilliseconds = 500,
-                AckTimeoutMilliseconds = 250,
+                ProtocolPeriodMilliseconds = 200,
+                AckTimeoutMilliseconds = 100,
                 NumberOfIndirectEndpoints = 2,
                 ListenPort = ushort.Parse(_configuration["port"]),
                 MemberIP = IPAddress.Parse(_configuration["ip"]),
@@ -65,7 +66,7 @@ namespace GossipMesh.Seed
                 SeedMembers = new IPEndPoint[] {},
             };
 
-            var gossiper = new Gossiper(options, memberEventListeners, Enumerable.Empty<IMemberListener>(), logger);
+            var gossiper = new Gossiper(options, memberEventListeners, memberListeners, logger);
 
             gossiper.Start();
         }

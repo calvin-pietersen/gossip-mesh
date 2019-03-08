@@ -1,13 +1,9 @@
 var topo = null;  // keep track of topo.
 function initialize_topo() {
     /*
-        create container for links and nodes elements.
+        create container for nodes elements.
     */
     var svg = d3.select('svg#topo_container');
-    var links = svg.select('g.links');
-    if (!links.size()) {
-        links = svg.append('g').attr('class', 'links');
-    }
     var nodes = svg.select('g.nodes');
     if (!nodes.size()) {
         nodes = svg.append('g').attr('class', 'nodes');
@@ -24,19 +20,7 @@ function initialize_topo() {
         /*
             force
         */
-        var link_frc = d3.forceLink()
-            .id(function (d) {
-                return d.id;
-            })
-            .distance(function (d) {
-                if ('id' in d.source && 'id' in d.target) {
-                    return 120;
-                }
-                else {
-                    return 60;
-                }
-            }),
-            charge_frc = d3.forceManyBody()
+        var charge_frc = d3.forceManyBody()
                 .strength(function (d) {
                     if ('id' in d) {
                         return -160;
@@ -72,7 +56,6 @@ function initialize_topo() {
             });
         // zoom and drag to move
         var zoom = d3.zoom().scaleExtent([0.1, 5]).on('zoom', function () {
-            links.attr('transform', d3.event.transform);
             nodes.attr('transform', d3.event.transform);
             descs.attr('transform', d3.event.transform);
         });
@@ -91,191 +74,33 @@ function initialize_topo() {
                     "<p><strong class='title'>Port:</strong>" + d.servicePort + "</p>";
             });
         svg.call(node_tip);
-        var link_src_tip = d3.tip().attr('class', 'tooltip'),
-            link_dst_tip = d3.tip().attr('class', 'tooltip');
-        svg.call(link_src_tip);
-        svg.call(link_dst_tip);
 
         // keep track of topo components.
         topo = {
             'simulation': simulation,
-            'link_force': link_frc,
             'charge_force': charge_frc,
             'center_force': center_frc,
             'drag': drag,
             'zoom': zoom,
             'node_tip': node_tip,
-            'link_source_tip': link_src_tip,
-            'link_dest_tip': link_dst_tip
         };
     }
 }
-function load(graph) {
+function load(nodes) {
     /*
-        load: load new nodes, links to simulation.
+        load: load new nodes to simulation.
     */
     var simulation = topo['simulation'],
-        link_frc = topo['link_force'],
         drag = topo['drag'],
         node_tip = topo['node_tip'],
-        link_src_tip = topo['link_source_tip'],
-        link_dst_tip = topo['link_dest_tip'],
         svg = d3.select('svg#topo_container');
 
-    var node_by_id = d3.map(graph.nodes, function (d) {
-        return d.id;
-    });
-    var bilinks = [];
-    graph.links.forEach(function (link, idx) {
-        var src = link.source = node_by_id.get(link.source),
-            target = link.target = node_by_id.get(link.target),
-            inter = {};
-        graph.nodes.push(inter);
-        graph.links.push({ 'source': src, 'target': inter }, { 'source': inter, 'target': target });
-        bilinks.push({
-            'id': link['id'],
-            'source': src,
-            'intermediate': inter,
-            'target': target,
-            'source': link['source'],
-            'target': link['target']
-        });
-    });
-    /*
-        update link visualization
-    */
-    var link = svg.select('g.links').selectAll('g.link_container').data(bilinks);
-    link.exit().remove();
-    var new_link = link.enter()
-        .append('g')
-        .classed('link_container', true);
-    new_link.append('path')
-        .classed('link_item', true);
-    new_link.append('path')
-        .classed('link_selector', true)
-        .on('mouseover', function (d) {
-            var src_node, dst_node;
-            /*
-                focus on target link
-            */
-            d3.select(this.parentNode).classed('focus', true);
-            /*
-                focus on target and source node
-                and show tips.
-            */
-            svg.select('g.nodes').selectAll('g.node_container')
-                .each(function (node_d) {
-                    if (node_d.id == d.source.id) {
-                        src_node = d3.select(this).classed('focus focusing', true);
-                    }
-                    else if (node_d.id == d.target.id) {
-                        dst_node = d3.select(this).classed('focus focusing', true);
-                    }
-                });
-            /*
-                calculate tooltip position
-            */
-            var src_dir, dst_dir,
-                src_offset = [0, 0],
-                dst_offset = [0, 0],
-                min_distance = 20,
-                x_distance = src_node.datum().x - dst_node.datum().x,
-                y_distance = src_node.datum().y - dst_node.datum().y;
-            if (Math.abs(x_distance) > Math.abs(y_distance)) {
-                if (x_distance > 0) {
-                    src_dir = 'e';
-                    src_offset[1] = 5;
-                    dst_dir = 'w';
-                    dst_offset[1] = -5;
-                }
-                else {
-                    src_dir = 'w';
-                    src_offset[1] = -5;
-                    dst_dir = 'e';
-                    dst_offset[1] = 5;
-                }
-                if (Math.abs(y_distance) > min_distance) {
-                    if (y_distance > 0) {
-                        src_dir = 's' + src_dir;
-                        src_offset = [-5, -(Math.sign(src_offset[1]) * 5)];
-                        dst_dir = 'n' + dst_dir;
-                        dst_offset = [5, -(Math.sign(dst_offset[1]) * 5)];
-                    }
-                    else {
-                        src_dir = 'n' + src_dir;
-                        src_offset = [5, -(Math.sign(src_offset[1]) * 5)];
-                        dst_dir = 's' + dst_dir;
-                        dst_offset = [-5, -(Math.sign(dst_offset[1]) * 5)];
-                    }
-                }
-            }
-            else {
-                if (y_distance > 0) {
-                    src_dir = 's';
-                    src_offset[0] = 5;
-                    dst_dir = 'n';
-                    dst_offset[0] = -5;
-                }
-                else {
-                    src_dir = 'n';
-                    src_offset[0] = -5;
-                    dst_dir = 's';
-                    dst_offset[0] = 5;
-                }
-                if (Math.abs(x_distance) > min_distance) {
-                    if (x_distance > 0) {
-                        src_dir = src_dir + 'e';
-                        src_offset = [-(Math.sign(src_offset[0]) * 5), -5];
-                        dst_dir = dst_dir + 'w';
-                        dst_offset = [-(Math.sign(dst_offset[0]) * 5), 5];
-                    }
-                    else {
-                        src_dir = src_dir + 'w';
-                        src_offset = [-(Math.sign(src_offset[0]) * 5), 5];
-                        dst_dir = dst_dir + 'e';
-                        dst_offset = [-(Math.sign(dst_offset[0]) * 5), -5];
-                    }
-                }
-            }
-            link_src_tip
-                .direction(src_dir)
-                .offset(src_offset)
-                .html("<strong>" + d.source.state + "</strong>")
-                .show(src_node.node());
-            link_dst_tip
-                .direction(dst_dir)
-                .offset(dst_offset)
-                .html("<strong> " + d.target.state + "</strong>")
-                .show(dst_node.node());
-        })
-        .on('mouseout', function (d) {
-            /*
-                move focus away from link.
-            */
-            d3.select(this.parentNode).classed('focus', false);
-            /*
-                move focus away from target and source nodes
-                hide tips
-            */
-            svg.select('g.nodes').selectAll('g.node_container')
-                .each(function (node_d) {
-                    if (node_d.id == d.source.id) {
-                        src_node = d3.select(this).classed('focus focusing', false);
-                        link_src_tip.hide();
-                    }
-                    else if (node_d.id == d.target.id) {
-                        dst_node = d3.select(this).classed('focus focusing', false);
-                        link_dst_tip.hide();
-                    }
-                });
-        });
-    link = new_link.merge(link);
     /*
         update node visualization
     */
 
     var node = svg.select('g.nodes').selectAll('g.node_container').data(
-        graph.nodes.filter(function (d) {
+        nodes.filter(function (d) {
             return 'id' in d;
         })
     );
@@ -307,7 +132,7 @@ function load(graph) {
         update descriptions
     */
     var desc = svg.select('g.desc').selectAll('g.desc_container').data(
-        graph.nodes.filter(function (d) {
+        nodes.filter(function (d) {
             return 'id' in d;
         })
     );
@@ -323,11 +148,10 @@ function load(graph) {
         return d['id'];
     });
 
-    simulation.nodes(graph.nodes);
-    link_frc.links(graph.links);
+    simulation.nodes(nodes);
 
     simulation.on('tick', function () {
-        do_tick(link, node, desc);
+        do_tick(node, desc);
     });
     do_layout();
 }
@@ -351,12 +175,11 @@ function do_static_layout() {
     */
     var simulation = topo['simulation'],
         center_frc = topo['center_force'],
-        charge_frc = topo['charge_force'],
-        link_frc = topo['link_force'];
+        charge_frc = topo['charge_force'];
+
         simulation
             .force('center', center_frc)
             .force('charge', charge_frc)
-            .force('link', link_frc);
     simulation.alpha(1);
     for (var i = 0, n = Math.ceil(Math.log(simulation.alphaMin()) / Math.log(1 - simulation.alphaDecay())); i < n; ++i) {
         simulation.tick();
@@ -364,24 +187,9 @@ function do_static_layout() {
     simulation
         .force('center', null)
         .force('charge', null)
-        .force('link', null);
     do_one_tick();
 }
-function do_tick(link_sel, node_sel, desc_sel) {
-    /*
-        update visualization of links
-            path
-    */
-    link_sel.select('path.link_item').attr("d", function (d) {
-        return "M" + d['source'].x + "," + d['source'].y
-            + "S" + d['intermediate'].x + "," + d['intermediate'].y
-            + " " + d['target'].x + "," + d['target'].y;
-    });
-    link_sel.select('path.link_selector').attr("d", function (d) {
-        return "M" + d['source'].x + "," + d['source'].y
-            + "S" + d['intermediate'].x + "," + d['intermediate'].y
-            + " " + d['target'].x + "," + d['target'].y;
-    });
+function do_tick(node_sel, desc_sel) {
     /*
         update visualization of nodes
             g <- text
@@ -402,14 +210,11 @@ function do_one_tick() {
         handle one tick on graphic elements.
     */
     var svg = d3.select('svg#topo_container'),
-        link = svg
-            .select('g.links')
-            .selectAll('g.link_container'),
         node = svg
             .select('g.nodes')
             .selectAll('g.node_container'),
         desc = svg
             .select('g.desc')
             .selectAll('g.desc_container');
-    do_tick(link, node, desc);
+    do_tick(node, desc);
 }

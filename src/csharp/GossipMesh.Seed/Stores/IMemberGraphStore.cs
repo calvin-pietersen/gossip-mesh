@@ -7,7 +7,7 @@ namespace GossipMesh.Seed.Stores
 {
     public interface IMemberGraphStore
     {
-        bool Update(IEnumerable<MemberEvent> memberEvents);
+        bool TryAddOrUpdateNode(MemberEvent memberEvent, out Graph.Node node);
 
         Graph GetGraph();
     }

@@ -13,66 +13,52 @@ namespace GossipMesh.Seed.Stores
     {
         private readonly object _memberGraphLocker = new Object();
         private readonly Dictionary<IPEndPoint, Graph.Node> _nodes = new Dictionary<IPEndPoint, Graph.Node>();
-        private readonly Dictionary<string, Graph.Link> _links = new Dictionary<string, Graph.Link>();
+        private readonly Random _random = new Random();
 
-        public bool Update(IEnumerable<MemberEvent> memberEvents)
+        public bool TryAddOrUpdateNode(MemberEvent memberEvent, out Graph.Node node)
         {
-            var wasUpdated = false;
-            foreach (var memberEvent in memberEvents)
+            var wasAddedOrUpdated = false;
+            lock (_memberGraphLocker)
             {
-
-                lock (_memberGraphLocker)
+                if (!_nodes.TryGetValue(memberEvent.GossipEndPoint, out node))
                 {
-                    Graph.Node node;
-                    if (!_nodes.TryGetValue(memberEvent.GossipEndPoint, out node))
+                    node = new Graph.Node
                     {
-                        node = new Graph.Node
-                        {
-                            Id = memberEvent.GossipEndPoint,
-                            Ip = memberEvent.IP,
-                            State = memberEvent.State,
-                            Generation = memberEvent.Generation,
-                            Service = memberEvent.Service,
-                            ServicePort = memberEvent.ServicePort
-                        };
+                        Id = memberEvent.GossipEndPoint,
+                        Ip = memberEvent.IP,
+                        State = memberEvent.State,
+                        Generation = memberEvent.Generation,
+                        Service = memberEvent.Service,
+                        ServicePort = memberEvent.ServicePort,
+                        X = (byte)_random.Next(0, 255),
+                        Y = (byte)_random.Next(0, 255)
+                    };
 
-                        _nodes.Add(memberEvent.GossipEndPoint, node);
-                        wasUpdated = true;
-                    }
+                    _nodes.Add(memberEvent.GossipEndPoint, node);
+                    wasAddedOrUpdated = true;
+                }
 
-                    else if (memberEvent.Generation > node.Generation ||
-                        (memberEvent.Generation == node.Generation && memberEvent.State > node.State))
+                else if (memberEvent.Generation > node.Generation ||
+                    (memberEvent.Generation == node.Generation && memberEvent.State > node.State))
+                {
+                    node = new Graph.Node
                     {
-                        node = new Graph.Node
-                        {
-                            Id = memberEvent.GossipEndPoint,
-                            Ip = memberEvent.IP,
-                            State = memberEvent.State,
-                            Generation = memberEvent.Generation,
-                            Service = memberEvent.Service,
-                            ServicePort = memberEvent.ServicePort
-                        };
+                        Id = memberEvent.GossipEndPoint,
+                        Ip = memberEvent.IP,
+                        State = memberEvent.State,
+                        Generation = memberEvent.Generation,
+                        Service = memberEvent.Service,
+                        ServicePort = memberEvent.ServicePort,
+                        X = node.X,
+                        Y = node.Y
+                    };
 
-                        _nodes[memberEvent.GossipEndPoint] = node;
-                        wasUpdated = true;
-                    }
-
-                    if (!memberEvent.SenderGossipEndPoint.Address.Equals(memberEvent.GossipEndPoint) && memberEvent.SenderGossipEndPoint.Port != memberEvent.GossipEndPoint.Port)
-                    {
-                        Graph.Link link;
-                        var linkId = Graph.Link.GetLinkId(memberEvent.SenderGossipEndPoint, memberEvent.GossipEndPoint);
-                        if (!_links.TryGetValue(linkId, out link))
-                        {
-                            link = new Graph.Link { Source = memberEvent.SenderGossipEndPoint, Target = memberEvent.GossipEndPoint };
-                            _links.Add(linkId, link);
-
-                            wasUpdated = true;
-                        }
-                    }
+                    _nodes[memberEvent.GossipEndPoint] = node;
+                    wasAddedOrUpdated = true;
                 }
             }
 
-            return wasUpdated;
+            return wasAddedOrUpdated;
         }
 
         public Graph GetGraph()
@@ -81,8 +67,7 @@ namespace GossipMesh.Seed.Stores
             {
                 return new Graph
                 {
-                    Nodes = _nodes.Values.ToArray(),
-                    Links = _links.Values.ToArray()
+                    Nodes = _nodes.Values.ToArray()
                 };
             }
         }

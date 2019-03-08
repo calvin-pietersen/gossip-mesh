@@ -1,7 +1,5 @@
 "use strict";
 
-initialize_topo();
-
 const dataTable = $('#realtime').DataTable({
     columns: [
         { title: 'Received'},
@@ -16,28 +14,36 @@ const dataTable = $('#realtime').DataTable({
     order: [[ 0, "desc" ]]
 });
 
+initialize_topo();
+
+var nodes = {};
+
 var connection = new signalR.HubConnectionBuilder().withUrl("/membersHub").build();
 
-connection.on("InitializationMessage", function (graphData, memberEvents) {
-    load(graphData);
-    addMemberEventsToTable(memberEvents);
+connection.on("InitializationMessage", function (graph, memberEvents) {
 
+    for (var i = 0, len = graph.nodes.length; i < len; i++) {
+        nodes[graph.nodes[i].id] = graph.nodes[i];
+    }
+
+    load(graph.nodes);
+    addMemberEventsToTable(memberEvents);
 });
 
 connection.on("MemberEventsMessage", function (memberEvents) {
     addMemberEventsToTable(memberEvents);
 });
 
-connection.on("MemberGraphUpdatedMessage", function (graphData) {
-    load(graphData);
+connection.on("NodeUpdatedMessage", function (node) {
+    nodes[node.id] = node;
+    load(Object.values(nodes));
 });
 
 connection.start().catch(function (err) {
     return console.error(err.toString());
 });
 
-function addMemberEventsToTable(memberEvents)
-{
+function addMemberEventsToTable(memberEvents) {
     var dataSet = [];
     for (var i = 0, len = memberEvents.length; i < len; i++) {
        dataSet.push(memberEventToRecord(memberEvents[i]));
