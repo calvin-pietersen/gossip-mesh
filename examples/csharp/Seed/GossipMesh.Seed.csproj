@@ -10,8 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.App" />
-
-    <ProjectReference Include="..\GossipMesh.Core\GossipMesh.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\csharp\GossipMesh.Core\GossipMesh.Core.csproj" />
   </ItemGroup>
 
 </Project>
