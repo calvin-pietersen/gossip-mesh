@@ -11,6 +11,7 @@ namespace GossipMesh.Core
 {
     public class Gossiper : IDisposable
     {
+        private readonly byte _protocolVersion = 0x00;
         private readonly Member _self;
         private readonly GossiperOptions _options;
         private readonly IEnumerable<IMemberEventsListener> _memberEventsListeners;
@@ -101,32 +102,44 @@ namespace GossipMesh.Core
 
                     using (var stream = new MemoryStream(request.Buffer, false))
                     {
-                        var messageType = stream.ReadMessageType();
-                        _logger.LogDebug("Gossip.Mesh recieved {MessageType} from {RemoteEndPoint}", messageType, request.RemoteEndPoint);
-
-                        IPEndPoint destinationGossipEndPoint;
-                        IPEndPoint sourceGossipEndPoint;
-
-                        if (messageType == MessageType.Ping || messageType == MessageType.Ack)
+                        var remoteProtocolVersion = stream.ReadByte();
+                        if (IsVersionCompatible(request.Buffer[0]))
                         {
-                            sourceGossipEndPoint = request.RemoteEndPoint;
-                            destinationGossipEndPoint = _self.GossipEndPoint;
+                            var messageType = stream.ReadMessageType();
+                            _logger.LogDebug("Gossip.Mesh received {MessageType} from {RemoteEndPoint}", messageType, request.RemoteEndPoint);
+
+                            IPEndPoint destinationGossipEndPoint;
+                            IPEndPoint sourceGossipEndPoint;
+
+                            if (messageType == MessageType.Ping || messageType == MessageType.Ack)
+                            {
+                                sourceGossipEndPoint = request.RemoteEndPoint;
+                                destinationGossipEndPoint = _self.GossipEndPoint;
+                            }
+
+                            else
+                            {
+                                destinationGossipEndPoint = stream.ReadIPEndPoint();
+                                sourceGossipEndPoint = stream.ReadIPEndPoint();
+                            }
+
+                            // update members
+                            UpdateMembers(request.RemoteEndPoint, receivedDateTime, stream);
+
+                            var members = GetMembers(request.RemoteEndPoint);
+                            await RequestHandler(request, messageType, sourceGossipEndPoint, destinationGossipEndPoint, members).ConfigureAwait(false);
                         }
+
 
                         else
                         {
-                            destinationGossipEndPoint = stream.ReadIPEndPoint();
-                            sourceGossipEndPoint = stream.ReadIPEndPoint();
+                            _logger.LogInformation("Gossip.Mesh received message on incompatible protocol version from {RemoteEndPoint}. Current version: {CurrentVersion} Received version: {ReceivedVersion}",
+                             request.RemoteEndPoint,
+                              _protocolVersion,
+                              remoteProtocolVersion);
                         }
-
-                        // update members
-                        UpdateMembers(request.RemoteEndPoint, receivedDateTime, stream);
-
-                        var members = GetMembers(request.RemoteEndPoint);
-                        await RequestHandler(request, messageType, sourceGossipEndPoint, destinationGossipEndPoint, members).ConfigureAwait(false);
                     }
                 }
-
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
@@ -232,6 +245,7 @@ namespace GossipMesh.Core
 
             using (var stream = new MemoryStream(_options.MaxUdpPacketBytes))
             {
+                stream.WriteByte(_protocolVersion);
                 stream.WriteByte((byte)messageType);
                 WriteMembers(stream, members);
 
@@ -245,6 +259,7 @@ namespace GossipMesh.Core
 
             using (var stream = new MemoryStream(_options.MaxUdpPacketBytes))
             {
+                stream.WriteByte(_protocolVersion);
                 stream.WriteByte((byte)messageType);
 
                 stream.WriteIPEndPoint(destinationGossipEndPoint);
@@ -258,7 +273,7 @@ namespace GossipMesh.Core
 
         private async Task ForwardMessageAsync(IPEndPoint destinationGossipEndPoint, IPEndPoint sourceGossipEndPoint, byte[] request)
         {
-            var messageType = (MessageType)request[0];
+            var messageType = (MessageType)request[1];
             _logger.LogDebug("Gossip.Mesh forwarding {messageType} to {destinationGossipEndPoint} from {sourceGossipEndPoint}", messageType, destinationGossipEndPoint, sourceGossipEndPoint);
 
             await _udpClient.SendAsync(request, request.Length, destinationGossipEndPoint).ConfigureAwait(false);
@@ -601,6 +616,12 @@ namespace GossipMesh.Core
             {
                 listener.MemberUpdatedCallback(memberEvent).ConfigureAwait(false);
             }
+        }
+
+        private bool IsVersionCompatible(byte version)
+        {
+            // can add more complex mapping for backwards compatibility
+            return _protocolVersion == version;
         }
 
         public void Dispose()
