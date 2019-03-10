@@ -31,24 +31,29 @@ namespace GossipMesh.Core
             SenderGossipEndPoint = senderGossipEndPoint;
             ReceivedDateTime = receivedDateTime;
 
-            State = member.State;
             IP = member.IP;
             GossipPort = member.GossipPort;
+            State = member.State;
             Generation = member.Generation;
             Service = member.Service;
             ServicePort = member.ServicePort;
         }
 
-        internal static MemberEvent ReadFrom(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Stream stream)
+        internal static MemberEvent ReadFrom(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Stream stream, bool isSender = false)
         {
+            if (stream.Position >= stream.Length)
+            {
+                return null;
+            }
+
             var memberEvent = new MemberEvent
             {
                 SenderGossipEndPoint = senderGossipEndPoint,
                 ReceivedDateTime = receivedDateTime,
 
-                State = stream.ReadMemberState(),
-                IP = stream.ReadIPAddress(),
-                GossipPort = stream.ReadPort(),
+                IP = isSender ? senderGossipEndPoint.Address : stream.ReadIPAddress(),
+                GossipPort = isSender ? (ushort)senderGossipEndPoint.Port : stream.ReadPort(),
+                State = isSender ? MemberState.Alive : stream.ReadMemberState(),
                 Generation = (byte)stream.ReadByte(),
             };
 
@@ -63,12 +68,12 @@ namespace GossipMesh.Core
     
         public override string ToString()
         {
-            return string.Format("Sender:{0} Received:{1} State:{2} IP:{3} GossipPort:{4} Generation:{5} Service:{6} ServicePort:{7}",
+            return string.Format("Sender:{0} Received:{1} IP:{2} GossipPort:{3} State:{4} Generation:{5} Service:{6} ServicePort:{7}",
             SenderGossipEndPoint,
             ReceivedDateTime,
-            State,
             IP,
             GossipPort,
+            State,
             Generation,
             Service,
             ServicePort);
@@ -77,9 +82,9 @@ namespace GossipMesh.Core
         public bool Equal(MemberEvent memberEvent)
         {
             return memberEvent != null &&
-                    State == memberEvent.State &&
                     IP.Equals(memberEvent.IP) &&
                     GossipPort == memberEvent.GossipPort &&
+                    State == memberEvent.State &&
                     Generation == memberEvent.Generation &&
                     Service == memberEvent.Service &&
                     ServicePort == memberEvent.ServicePort;

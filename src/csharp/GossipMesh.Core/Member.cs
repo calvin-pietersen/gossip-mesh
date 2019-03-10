@@ -19,9 +19,9 @@ namespace GossipMesh.Core
 
         internal Member(MemberEvent memberEvent)
         {
-            State = memberEvent.State;
             IP = memberEvent.IP;
             GossipPort = memberEvent.GossipPort;
+            State = memberEvent.State;
             Generation = memberEvent.Generation;
             Service = memberEvent.Service;
             ServicePort = memberEvent.ServicePort;
@@ -79,8 +79,8 @@ namespace GossipMesh.Core
 
         internal void WriteTo(Stream stream)
         {
-            stream.WriteByte((byte)State);
             stream.WriteIPEndPoint(GossipEndPoint);
+            stream.WriteByte((byte)State);
             stream.WriteByte(Generation);
 
             if (State == MemberState.Alive)
@@ -94,10 +94,10 @@ namespace GossipMesh.Core
 
         public override string ToString()
         {
-            return string.Format("State:{0} IP:{1} GossipPort:{2} Generation:{3} Service:{4} ServicePort:{5}",
-            State,
+            return string.Format("IP:{0} GossipPort:{1} State:{2} Generation:{3} Service:{4} ServicePort:{5}",
             IP,
             GossipPort,
+            State,
             Generation,
             Service,
             ServicePort);

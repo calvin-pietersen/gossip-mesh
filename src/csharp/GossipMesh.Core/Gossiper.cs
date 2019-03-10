@@ -230,12 +230,11 @@ namespace GossipMesh.Core
         {
             _logger.LogDebug("Gossip.Mesh sending {messageType} to {destinationGossipEndPoint}", messageType, destinationGossipEndPoint);
             
-            var members = GetMembers(destinationGossipEndPoint);
             using (var stream = new MemoryStream(_options.MaxUdpPacketBytes))
             {
                 stream.WriteByte(_protocolVersion);
                 stream.WriteByte((byte)messageType);
-                WriteMembers(stream, members);
+                WriteMembers(stream, destinationGossipEndPoint);
 
                 await _udpClient.SendAsync(stream.GetBuffer(), (int)stream.Position, destinationGossipEndPoint).ConfigureAwait(false);
             }
@@ -245,13 +244,12 @@ namespace GossipMesh.Core
         {
             _logger.LogDebug("Gossip.Mesh sending {messageType} to {destinationGossipEndPoint} via {indirectEndpoint}", messageType, destinationGossipEndPoint, indirectGossipEndPoint);
 
-            var members = GetMembers(destinationGossipEndPoint);
             using (var stream = new MemoryStream(_options.MaxUdpPacketBytes))
             {
                 stream.WriteByte(_protocolVersion);
                 stream.WriteByte((byte)messageType);
                 stream.WriteIPEndPoint(destinationGossipEndPoint);
-                WriteMembers(stream, members);
+                WriteMembers(stream, destinationGossipEndPoint);
 
                 await _udpClient.SendAsync(stream.GetBuffer(), (int)stream.Position, indirectGossipEndPoint).ConfigureAwait(false);
             }
@@ -261,13 +259,12 @@ namespace GossipMesh.Core
         {
             _logger.LogDebug("Gossip.Mesh sending {messageType} to {destinationGossipEndPoint} from {sourceGossipEndPoint}", messageType, destinationGossipEndPoint, sourceGossipEndPoint);
 
-            var members = GetMembers(destinationGossipEndPoint);
             using (var stream = new MemoryStream(_options.MaxUdpPacketBytes))
             {
                 stream.WriteByte(_protocolVersion);
                 stream.WriteByte((byte)messageType);
                 stream.WriteIPEndPoint(sourceGossipEndPoint);
-                WriteMembers(stream, members);
+                WriteMembers(stream, destinationGossipEndPoint);
 
                 await _udpClient.SendAsync(stream.GetBuffer(), (int)stream.Position, destinationGossipEndPoint).ConfigureAwait(false);
             }
@@ -299,78 +296,98 @@ namespace GossipMesh.Core
         private void UpdateMembers(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Stream stream)
         {
             var memberEvents = new List<MemberEvent>();
-            while (stream.Position < stream.Length)
+
+            // read sender
+            var memberEvent = MemberEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream, true);
+
+            // handle ourself
+            var selfState = stream.ReadMemberState();
+            var selfGeneration = (byte)stream.ReadByte();
+
+            if (_self.IsLaterGeneration(selfGeneration) ||
+                (selfState != MemberState.Alive && selfGeneration == _self.Generation))
             {
-                var memberEvent = MemberEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream);
+                _self.Generation = (byte)(selfGeneration + 1);
+                _logger.LogInformation("Gossip.Mesh received a memberEvent: {memberEvent} about self. Upped generation: {generation}", memberEvent, _self.Generation);
+
+                memberEvents.Add(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
+            }
+
+            // handler sender and everyone else
+            while (memberEvent != null)
+            {
                 memberEvents.Add(memberEvent);
 
-                // we don't add ourselves to the member list
-                if (!EndPointsMatch(memberEvent.GossipEndPoint, _self.GossipEndPoint))
+                lock (_memberLocker)
                 {
-                    lock (_memberLocker)
+                    if (_members.TryGetValue(memberEvent.GossipEndPoint, out var member) &&
+                        (member.IsLaterGeneration(memberEvent.Generation) ||
+                        (member.Generation == memberEvent.Generation && member.IsStateSuperseded(memberEvent.State))))
                     {
-                        if (_members.TryGetValue(memberEvent.GossipEndPoint, out var member) &&
-                            (member.IsLaterGeneration(memberEvent.Generation) ||
-                            (member.Generation == memberEvent.Generation && member.IsStateSuperseded(memberEvent.State))))
-                        {
-                            RemoveAwaitingAck(member.GossipEndPoint); // stops dead claim escalation
-                            member.Update(memberEvent);
-                            _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
+                        RemoveAwaitingAck(member.GossipEndPoint); // stops dead claim escalation
+                        member.Update(memberEvent);
+                        _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
 
-                            var selfMemberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
-                            PushToMemberListeners(selfMemberEvent);
-                            memberEvents.Add(selfMemberEvent);
-                        }
-
-                        else if (member == null)
-                        {
-                            member = new Member(memberEvent);
-                            _members.Add(member.GossipEndPoint, member);
-                            _logger.LogInformation("Gossip.Mesh member added {member}", member);
-
-                            var selfMemberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
-                            PushToMemberListeners(selfMemberEvent);
-                            memberEvents.Add(selfMemberEvent);
-                        }
+                        var selfMemberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
+                        PushToMemberListeners(selfMemberEvent);
+                        memberEvents.Add(selfMemberEvent);
                     }
 
-                    if (memberEvent.State == MemberState.Dead || memberEvent.State == MemberState.Left)
+                    else if (member == null)
                     {
-                        AddPruneMember(memberEvent.GossipEndPoint);
+                        member = new Member(memberEvent);
+                        _members.Add(member.GossipEndPoint, member);
+                        _logger.LogInformation("Gossip.Mesh member added {member}", member);
+
+                        var selfMemberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
+                        PushToMemberListeners(selfMemberEvent);
+                        memberEvents.Add(selfMemberEvent);
                     }
                 }
 
-                else
+                if (memberEvent.State == MemberState.Dead || memberEvent.State == MemberState.Left)
                 {
-                    // handle any state claims about ourselves
-                    if (_self.IsLaterGeneration(memberEvent.Generation) ||
-                        (memberEvent.State != MemberState.Alive && memberEvent.Generation == _self.Generation))
-                    {
-                        _self.Generation = (byte)(memberEvent.Generation + 1);
-                        _logger.LogInformation("Gossip.Mesh received a memberEvent: {memberEvent} about self. Upped generation: {generation}", memberEvent, _self.Generation);
-                    }
-
-                    memberEvents.Add(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
+                    AddPruneMember(memberEvent.GossipEndPoint);
                 }
+
+                memberEvent = MemberEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream);
             }
 
             PushToMemberEventsListeners(memberEvents);
         }
 
-        private void WriteMembers(Stream stream, Member[] members)
+        private void WriteMembers(Stream stream, IPEndPoint destinationGossipEndPoint)
         {
-            // always prioritize ourselves
-            _self.WriteTo(stream);
-
-            if (members != null)
+            lock (_memberLocker)
             {
-                var i = 0;
+                stream.WriteByte(_self.Generation);
+                stream.WriteByte(_self.Service);
+                stream.WritePort(_self.ServicePort);
+
+                if (_members.TryGetValue(destinationGossipEndPoint, out var destinationMember))
                 {
-                    while (i < members.Length && stream.Position < _options.MaxUdpPacketBytes - 11)
+                    stream.WriteByte((byte)destinationMember.State);
+                    stream.WriteByte(destinationMember.Generation);
+                }
+
+                else
+                {
+                    stream.WriteByte((byte)MemberState.Alive);
+                    stream.WriteByte(0x01);
+                }
+
+                var members = GetMembers(destinationGossipEndPoint);
+
+                if (members != null)
+                {
+                    var i = 0;
                     {
-                        var member = members[i];
-                        members[i].WriteTo(stream);
-                        i++;
+                        while (i < members.Length && stream.Position < _options.MaxUdpPacketBytes - 11)
+                        {
+                            var member = members[i];
+                            members[i].WriteTo(stream);
+                            i++;
+                        }
                     }
                 }
             }
@@ -403,7 +420,7 @@ namespace GossipMesh.Core
                     return _members
                         .Values
                         .OrderBy(m => m.GossipCounter)
-                        .Where(m => !_pruneMembers.ContainsKey(m.GossipEndPoint) || EndPointsMatch(destinationGossipEndPoint, m.GossipEndPoint))
+                        .Where(m => !_pruneMembers.ContainsKey(m.GossipEndPoint) && !EndPointsMatch(destinationGossipEndPoint, m.GossipEndPoint))
                         .ToArray();
                 }
             }
