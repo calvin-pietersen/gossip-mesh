@@ -78,10 +78,12 @@ namespace GreeterClient
                 ListenPort = listenPort,
                 Service = 0x03,
                 ServicePort = listenPort,
-                SeedMembers = seeds
+                SeedMembers = seeds,
+                MemberEventsListeners = Enumerable.Empty<IMemberEventsListener>(),
+                MemberListeners = memberListeners
             };
 
-            var gossiper = new Gossiper(options, Enumerable.Empty<IMemberEventsListener>(), memberListeners, logger);
+            var gossiper = new Gossiper(options, logger);
             gossiper.Start();
 
             return gossiper;

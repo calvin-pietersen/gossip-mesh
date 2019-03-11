@@ -62,9 +62,11 @@ namespace GossipMesh.Seed
                 Service = 0x01,
                 ServicePort = (ushort)5000,
                 SeedMembers = GetSeedEndPoints(),
+                MemberEventsListeners = memberEventListeners,
+                MemberListeners = memberListeners
             };
 
-            var gossiper = new Gossiper(options, memberEventListeners, memberListeners, logger);
+            var gossiper = new Gossiper(options, logger);
             gossiper.Start();
         }
 

@@ -14,8 +14,6 @@ namespace GossipMesh.Core
         private readonly byte _protocolVersion = 0x00;
         private readonly Member _self;
         private readonly GossiperOptions _options;
-        private readonly IEnumerable<IMemberEventsListener> _memberEventsListeners;
-        private readonly IEnumerable<IMemberListener> _memberListeners;
         private readonly object _memberLocker = new Object();
         private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
         private readonly object _awaitingAcksLocker = new Object();
@@ -31,11 +29,9 @@ namespace GossipMesh.Core
 
         private readonly ILogger _logger;
 
-        public Gossiper(GossiperOptions options, IEnumerable<IMemberEventsListener> memberEventsListeners, IEnumerable<IMemberListener> memberListeners, ILogger logger)
+        public Gossiper(GossiperOptions options, ILogger logger)
         {
             _options = options;
-            _memberEventsListeners = memberEventsListeners;
-            _memberListeners = memberListeners;
             _logger = logger;
 
             _self = new Member(MemberState.Alive, IPAddress.Any, options.ListenPort, 1, options.Service, options.ServicePort);
@@ -640,7 +636,7 @@ namespace GossipMesh.Core
 
         private void PushToMemberEventsListeners(IEnumerable<MemberEvent> memberEvents)
         {
-            foreach (var listener in _memberEventsListeners)
+            foreach (var listener in _options.MemberEventsListeners)
             {
                 listener.MemberEventsCallback(memberEvents).ConfigureAwait(false);
             }
@@ -648,7 +644,7 @@ namespace GossipMesh.Core
 
         private void PushToMemberListeners(MemberEvent memberEvent)
         {
-            foreach (var listener in _memberListeners)
+            foreach (var listener in _options.MemberListeners)
             {
                 listener.MemberUpdatedCallback(memberEvent).ConfigureAwait(false);
             }

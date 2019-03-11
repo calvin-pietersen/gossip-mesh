@@ -32,5 +32,7 @@ namespace GossipMesh.Core
         public byte Service { get; set; }
         public ushort ServicePort { get; set; }
         public IPEndPoint[] SeedMembers { get; set; }
+        public IEnumerable<IMemberEventsListener> MemberEventsListeners { get; set; }
+        public IEnumerable<IMemberListener> MemberListeners { get; set; }
     }
 }

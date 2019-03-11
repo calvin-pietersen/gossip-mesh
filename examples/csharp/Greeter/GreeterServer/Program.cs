@@ -22,8 +22,6 @@ namespace GreeterServer
             var gossiper = StartGossiper(listenPort, seeds, logger);
 
             await Task.Delay(-1);
-            //Console.ReadKey();
-
             await server.ShutdownAsync();
         }
 
@@ -44,12 +42,13 @@ namespace GreeterServer
                 ListenPort = listenPort,
                 Service = 0x02,
                 ServicePort = listenPort,
-                SeedMembers = seeds
+                SeedMembers = seeds,
+                MemberEventsListeners = Enumerable.Empty<IMemberEventsListener>(),
+                MemberListeners = Enumerable.Empty<IMemberListener>()
             };
 
-            var gossiper = new Gossiper(options, Enumerable.Empty<IMemberEventsListener>(),Enumerable.Empty<IMemberListener>(), logger);
+            var gossiper = new Gossiper(options, logger);
             gossiper.Start();
-
             return gossiper;
         }
         private static Server StartGrpcServer(ushort listenPort, ILogger logger)
@@ -61,7 +60,6 @@ namespace GreeterServer
             };
 
             server.Start();
-
             return server;
         }
         private static IPEndPoint IPEndPointFromString(string ipEndPointString)
