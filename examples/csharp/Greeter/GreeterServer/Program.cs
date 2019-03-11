@@ -14,12 +14,12 @@ namespace GreeterServer
     {
         public static async Task Main(string[] args)
         {
-            var listenEndPoint = IPEndPointFromString(args[0]);
+            var listenPort = ushort.Parse(args[0]);
             var seeds = args.Skip(1).Select(IPEndPointFromString).ToArray();
 
             var logger = CreateLogger();
-            var server = StartGrpcServer(listenEndPoint, logger);
-            var gossiper = StartGossiper(listenEndPoint, seeds, logger);
+            var server = StartGrpcServer(listenPort, logger);
+            var gossiper = StartGossiper(listenPort, seeds, logger);
 
             await Task.Delay(-1);
             //Console.ReadKey();
@@ -34,18 +34,16 @@ namespace GreeterServer
             return loggerFactory
                 .CreateLogger<Program>();
         }
-        private static Gossiper StartGossiper(IPEndPoint listenEndPoint, IPEndPoint[] seeds, ILogger logger)
+        private static Gossiper StartGossiper(ushort listenPort, IPEndPoint[] seeds, ILogger logger)
         {
             var options = new GossiperOptions
             {
                 MaxUdpPacketBytes = 508,
                 ProtocolPeriodMilliseconds = 200,
-                AckTimeoutMilliseconds = 100,
                 NumberOfIndirectEndpoints = 2,
-                ListenPort = (ushort)listenEndPoint.Port,
-                MemberIP = listenEndPoint.Address,
-                Service = (byte)2,
-                ServicePort = (ushort)listenEndPoint.Port,
+                ListenPort = listenPort,
+                Service = 0x02,
+                ServicePort = listenPort,
                 SeedMembers = seeds
             };
 
@@ -54,12 +52,12 @@ namespace GreeterServer
 
             return gossiper;
         }
-        private static Server StartGrpcServer(IPEndPoint serverEndPoint, ILogger logger)
+        private static Server StartGrpcServer(ushort listenPort, ILogger logger)
         {
             Server server = new Server
             {
                 Services = { Helloworld.Greeter.BindService(new GreeterImpl(logger)) },
-                Ports = { new ServerPort(serverEndPoint.Address.ToString(), serverEndPoint.Port, ServerCredentials.Insecure) }
+                Ports = { new ServerPort("0.0.0.0", listenPort, ServerCredentials.Insecure) }
             };
 
             server.Start();

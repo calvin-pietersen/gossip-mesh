@@ -57,18 +57,26 @@ namespace GossipMesh.Seed
             {
                 MaxUdpPacketBytes = 508,
                 ProtocolPeriodMilliseconds = 200,
-                AckTimeoutMilliseconds = 100,
                 NumberOfIndirectEndpoints = 2,
                 ListenPort = ushort.Parse(_configuration["port"]),
-                MemberIP = IPAddress.Parse(_configuration["ip"]),
-                Service = (byte)1,
+                Service = 0x01,
                 ServicePort = (ushort)5000,
-                SeedMembers = new IPEndPoint[] {},
+                SeedMembers = GetSeedEndPoints(),
             };
 
             var gossiper = new Gossiper(options, memberEventListeners, memberListeners, logger);
-
             gossiper.Start();
+        }
+
+        public IPEndPoint[] GetSeedEndPoints()
+        {
+            if (_configuration["seeds"] == null)
+            {
+                return new IPEndPoint[] {};
+            }
+             return _configuration["seeds"].Split(",")
+                .Select(endPoint => endPoint.Split(":"))
+                    .Select(endPointValues => new IPEndPoint(IPAddress.Parse(endPointValues[0]), ushort.Parse(endPointValues[1]))).ToArray();
         }
     }
 }

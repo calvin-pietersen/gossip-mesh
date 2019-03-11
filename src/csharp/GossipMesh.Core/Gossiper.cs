@@ -38,7 +38,7 @@ namespace GossipMesh.Core
             _memberListeners = memberListeners;
             _logger = logger;
 
-            _self = new Member(MemberState.Alive, options.MemberIP, options.ListenPort, 1, options.Service, options.ServicePort);
+            _self = new Member(MemberState.Alive, IPAddress.Any, options.ListenPort, 1, options.Service, options.ServicePort);
         }
 
         public void Start()

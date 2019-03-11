@@ -18,13 +18,13 @@ namespace GreeterClient
     {
         public static async Task Main(string[] args)
         {
-            var listenEndPoint = IPEndPointFromString(args[0]);
+            var listenPort = ushort.Parse(args[0]);
             var seeds = args.Skip(1).Select(IPEndPointFromString).ToArray();
 
             var logger = CreateLogger();
 
             var loadBalancer = CreateLoadBalancer();
-            var gossiper = StartGossiper(listenEndPoint, seeds, new IMemberListener[] { loadBalancer }, logger);
+            var gossiper = StartGossiper(listenPort, seeds, new IMemberListener[] { loadBalancer }, logger);
 
             var stopwatch = new Stopwatch();
             while (true)
@@ -68,18 +68,16 @@ namespace GreeterClient
 
             return new RandomLoadBalancer(serviceClientFactories);
         }
-        private static Gossiper StartGossiper(IPEndPoint listenEndPoint, IPEndPoint[] seeds, IMemberListener[] memberListeners, ILogger logger)
+        private static Gossiper StartGossiper(ushort listenPort, IPEndPoint[] seeds, IMemberListener[] memberListeners, ILogger logger)
         {
             var options = new GossiperOptions
             {
                 MaxUdpPacketBytes = 508,
                 ProtocolPeriodMilliseconds = 200,
-                AckTimeoutMilliseconds = 100,
                 NumberOfIndirectEndpoints = 2,
-                ListenPort = (ushort)listenEndPoint.Port,
-                MemberIP = listenEndPoint.Address,
-                Service = (byte)3,
-                ServicePort = (ushort)listenEndPoint.Port,
+                ListenPort = listenPort,
+                Service = 0x03,
+                ServicePort = listenPort,
                 SeedMembers = seeds
             };
 
