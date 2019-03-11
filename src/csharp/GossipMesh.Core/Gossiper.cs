@@ -27,6 +27,7 @@ namespace GossipMesh.Core
         private DateTime _lastProtocolPeriod = DateTime.Now;
         private readonly Random _rand = new Random();
         private UdpClient _udpClient;
+        public const int SIO_UDP_CONNRESET = -1744830452;
 
         private readonly ILogger _logger;
 
@@ -400,6 +401,7 @@ namespace GossipMesh.Core
             {
                 udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 udpClient.Client.Bind(listenEndPoint);
+                udpClient.Client.IOControl((IOControlCode)SIO_UDP_CONNRESET, new byte[] {0, 0, 0, 0 },null);
                 udpClient.DontFragment = true;
             }
 
