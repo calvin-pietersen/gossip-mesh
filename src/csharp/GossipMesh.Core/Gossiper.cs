@@ -249,7 +249,7 @@ namespace GossipMesh.Core
                 stream.WriteByte(_protocolVersion);
                 stream.WriteByte((byte)messageType);
                 stream.WriteIPEndPoint(destinationGossipEndPoint);
-                WriteMembers(stream, destinationGossipEndPoint);
+                WriteMembers(stream, indirectGossipEndPoint);
 
                 await _udpClient.SendAsync(stream.GetBuffer(), (int)stream.Position, indirectGossipEndPoint).ConfigureAwait(false);
             }
@@ -446,7 +446,7 @@ namespace GossipMesh.Core
                     var members = _members.Values.Where(m => !_pruneMembers.ContainsKey(m.GossipEndPoint));
                     if (members.Any())
                     {
-                        gossipEndPoint = members.ElementAt(_rand.Next(0, _members.Count())).GossipEndPoint;
+                        gossipEndPoint = members.ElementAt(_rand.Next(0, members.Count())).GossipEndPoint;
                         success = true;
                     }
                 }
