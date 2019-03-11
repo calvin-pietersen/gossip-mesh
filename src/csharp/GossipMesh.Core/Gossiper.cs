@@ -439,12 +439,16 @@ namespace GossipMesh.Core
             var success = false;
             gossipEndPoint = null;
 
-            lock (_memberLocker)
+            lock (_pruneMembersLocker)
             {
-                if (_members.Any())
+                lock (_memberLocker)
                 {
-                    gossipEndPoint = _members.Values.ElementAt(_rand.Next(0, _members.Count())).GossipEndPoint;
-                    success = true;
+                    var members = _members.Values.Where(m => !_pruneMembers.ContainsKey(m.GossipEndPoint));
+                    if (members.Any())
+                    {
+                        gossipEndPoint = members.ElementAt(_rand.Next(0, _members.Count())).GossipEndPoint;
+                        success = true;
+                    }
                 }
             }
 
