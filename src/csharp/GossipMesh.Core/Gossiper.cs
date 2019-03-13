@@ -339,14 +339,14 @@ namespace GossipMesh.Core
             var memberEvent = MemberEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream, true);
 
             // handle ourself
-            var selfState = stream.ReadMemberState();
-            var selfGeneration = (byte)stream.ReadByte();
+            var selfClaimedState = stream.ReadMemberState();
+            var selfClaimedGeneration = (byte)stream.ReadByte();
 
-            if (_self.IsLaterGeneration(selfGeneration) ||
-                (selfState != MemberState.Alive && selfGeneration == _self.Generation))
+            if (_self.IsLaterGeneration(selfClaimedGeneration) ||
+                (selfClaimedState != MemberState.Alive && selfClaimedGeneration == _self.Generation))
             {
-                _self.Generation = (byte)(selfGeneration + 1);
-                _logger.LogInformation("Gossip.Mesh received a memberEvent: {memberEvent} about self. Upped generation: {generation}", memberEvent, _self.Generation);
+                _self.Generation = (byte)(selfClaimedGeneration + 1);
+                _logger.LogInformation("Gossip.Mesh received a claim about self, state:{state} generation:{generation}. Raising generation to {generation}", selfClaimedState, selfClaimedGeneration, _self.Generation);
 
                 memberEvents.Add(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
             }
