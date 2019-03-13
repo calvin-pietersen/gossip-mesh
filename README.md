@@ -11,11 +11,12 @@ In most languages, the Gossip Mesh server comes as a package available in a user
 For instructions on how to use the language-specific gossip mesh server for a project, please refer to these documents
 
  * [C#](src/csharp): NuGet package `GossipMesh`
+ * [Erlang](src/erlang): Hex package `GossipMesh`
  * [Java](src/java): Use JARs from Maven Central Repository
 
 # Protocol
 
-See [Gossip Mesh protocol](doc/PROTOCOL.md)
+See [Gossip mesh protocol](doc/PROTOCOL.md)
 
 # About This Repository
 
@@ -24,4 +25,5 @@ Libraries in different languages may be in various states of development. We are
 | Language                | Source                              |
 |-------------------------|-------------------------------------|
 | C#                      | [src/csharp](src/csharp)            |
+| Erlang                  | [src/erlang](src/erlang)            |
 | Java                    | [src/java](src/java)                |
