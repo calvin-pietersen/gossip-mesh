@@ -11,9 +11,9 @@ namespace GossipMesh.Core
 {
     public class GossiperOptions
     {
-        private int _protocolPeriodMilliseconds;
-        private int _ackTimeoutMilliseconds;
-        public int MaxUdpPacketBytes { get; set; }
+        private int _protocolPeriodMilliseconds = 1000;
+        private int _ackTimeoutMilliseconds = 500;
+        public int MaxUdpPacketBytes { get; set; } = 508;
         public int ProtocolPeriodMilliseconds
         {
             get
@@ -27,12 +27,10 @@ namespace GossipMesh.Core
             }
         }
         public int AckTimeoutMilliseconds { get { return _ackTimeoutMilliseconds; } }
-        public int NumberOfIndirectEndpoints { get; set; }
-        public ushort ListenPort { get; set; }
-        public byte Service { get; set; }
-        public ushort ServicePort { get; set; }
-        public IPEndPoint[] SeedMembers { get; set; }
-        public IEnumerable<IMemberEventsListener> MemberEventsListeners { get; set; }
-        public IEnumerable<IMemberListener> MemberListeners { get; set; }
+        public int FanoutFactor { get; set; } = 5;
+        public int NumberOfIndirectEndpoints { get; set; } = 3;
+        public IPEndPoint[] SeedMembers { get; set; } = new IPEndPoint[0];
+        public IEnumerable<IMemberEventsListener> MemberEventsListeners { get; set; } = Enumerable.Empty<IMemberEventsListener>();
+        public IEnumerable<IMemberListener> MemberListeners { get; set; } = Enumerable.Empty<IMemberListener>();
     }
 }

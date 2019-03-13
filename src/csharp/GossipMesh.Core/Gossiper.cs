@@ -11,9 +11,9 @@ namespace GossipMesh.Core
 {
     public class Gossiper : IDisposable
     {
-        private readonly byte _protocolVersion = 0x00;
-        private readonly Member _self;
+        private const byte PROTOCOL_VERSION = 0x00;
         private readonly object _locker = new Object();
+        private readonly Member _self;
         private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
         private volatile Dictionary<IPEndPoint, DateTime> _awaitingAcks = new Dictionary<IPEndPoint, DateTime>();
         private DateTime _lastProtocolPeriod = DateTime.Now;
@@ -23,12 +23,12 @@ namespace GossipMesh.Core
         private readonly GossiperOptions _options;
         private readonly ILogger _logger;
 
-        public Gossiper(GossiperOptions options, ILogger logger)
+        public Gossiper(ushort listenPort, byte service, ushort servicePort, GossiperOptions options, ILogger logger)
         {
             _options = options;
             _logger = logger;
 
-            _self = new Member(MemberState.Alive, IPAddress.Any, options.ListenPort, 1, options.Service, options.ServicePort);
+            _self = new Member(MemberState.Alive, IPAddress.Any, listenPort, 1, service, servicePort);
         }
 
         public void Start()
@@ -46,7 +46,7 @@ namespace GossipMesh.Core
             Task.Run(async () => await Listener().ConfigureAwait(false)).ConfigureAwait(false);
 
             // gossip
-            Task.Run(async () => await Gossip().ConfigureAwait(false)).ConfigureAwait(false);
+            Task.Run(async () => await GossipPump().ConfigureAwait(false)).ConfigureAwait(false);
 
             // prune
             Task.Run(async () => await Prune().ConfigureAwait(false)).ConfigureAwait(false);
@@ -132,7 +132,7 @@ namespace GossipMesh.Core
                         {
                             _logger.LogInformation("Gossip.Mesh received message on incompatible protocol version from {RemoteEndPoint}. Current version: {CurrentVersion} Received version: {ReceivedVersion}",
                              request.RemoteEndPoint,
-                              _protocolVersion,
+                              PROTOCOL_VERSION,
                               remoteProtocolVersion);
                         }
                     }
@@ -144,43 +144,62 @@ namespace GossipMesh.Core
             }
         }
 
-        private async Task Gossip()
+        private async Task GossipPump()
         {
             while (true)
             {
                 try
                 {
-                    if (TryGetRandomGossipEndPoint(out var gossipEndPoint))
+                    var gossipEndPoints = GetRandomGossipEndPoints(_options.FanoutFactor).ToArray();
+
+                    var gossipTasks = new Task[gossipEndPoints.Length];
+
+                    for (int i = 0; i < gossipEndPoints.Length; i++)
                     {
-                        AddAwaitingAck(gossipEndPoint);
-                        await PingAsync(gossipEndPoint).ConfigureAwait(false);
-
-                        await Task.Delay(_options.AckTimeoutMilliseconds).ConfigureAwait(false);
-
-                        // check was not acked
-                        if (WasNotAcked(gossipEndPoint))
-                        {
-                            UpdateMemberState(gossipEndPoint, MemberState.Suspicious);
-                            var indirectEndpoints = GetRandomIndirectGossipEndPoints(gossipEndPoint);
-
-                            await RequestPingAsync(gossipEndPoint, indirectEndpoints).ConfigureAwait(false);
-
-                            await Task.Delay(_options.AckTimeoutMilliseconds).ConfigureAwait(false);
-
-                            if(WasNotAcked(gossipEndPoint))
-                            {
-                                UpdateMemberState(gossipEndPoint, MemberState.Dead);
-                            }
-                        }
+                        gossipTasks[i] = Gossip(gossipEndPoints[i]);
                     }
+
+                    await Task.WhenAll(gossipTasks).ConfigureAwait(false);
+
+                    await WaitForProtocolPeriod().ConfigureAwait(false);
                 }
 
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
                 }
+            }
+        }
 
-                await WaitForProtocolPeriod().ConfigureAwait(false);
+        private async Task Gossip(IPEndPoint gossipEndPoint)
+        {
+            try
+            {
+                AddAwaitingAck(gossipEndPoint);
+                await PingAsync(gossipEndPoint).ConfigureAwait(false);
+
+                await Task.Delay(_options.AckTimeoutMilliseconds).ConfigureAwait(false);
+                // check was not acked
+                if (WasNotAcked(gossipEndPoint))
+                {
+                    _logger.LogDebug("in here with endpoint {gossipEndPoint}", gossipEndPoint);
+                    UpdateMemberState(gossipEndPoint, MemberState.Suspicious);
+                    var indirectEndpoints = GetRandomGossipEndPoints(_options.NumberOfIndirectEndpoints, gossipEndPoint);
+
+                    await RequestPingAsync(gossipEndPoint, indirectEndpoints).ConfigureAwait(false);
+
+                    await Task.Delay(_options.AckTimeoutMilliseconds).ConfigureAwait(false);
+
+                    if (WasNotAcked(gossipEndPoint))
+                    {
+                        UpdateMemberState(gossipEndPoint, MemberState.Dead);
+                    }
+                }
+            }
+
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
             }
         }
 
@@ -251,7 +270,7 @@ namespace GossipMesh.Core
             
             using (var stream = new MemoryStream(_options.MaxUdpPacketBytes))
             {
-                stream.WriteByte(_protocolVersion);
+                stream.WriteByte(PROTOCOL_VERSION);
                 stream.WriteByte((byte)messageType);
                 WriteMembers(stream, destinationGossipEndPoint);
 
@@ -265,7 +284,7 @@ namespace GossipMesh.Core
 
             using (var stream = new MemoryStream(_options.MaxUdpPacketBytes))
             {
-                stream.WriteByte(_protocolVersion);
+                stream.WriteByte(PROTOCOL_VERSION);
                 stream.WriteByte((byte)messageType);
                 stream.WriteIPEndPoint(destinationGossipEndPoint);
                 WriteMembers(stream, indirectGossipEndPoint);
@@ -280,7 +299,7 @@ namespace GossipMesh.Core
 
             using (var stream = new MemoryStream(_options.MaxUdpPacketBytes))
             {
-                stream.WriteByte(_protocolVersion);
+                stream.WriteByte(PROTOCOL_VERSION);
                 stream.WriteByte((byte)messageType);
                 stream.WriteIPEndPoint(sourceGossipEndPoint);
                 WriteMembers(stream, destinationGossipEndPoint);
@@ -362,12 +381,7 @@ namespace GossipMesh.Core
                         memberEvents.Add(selfMemberEvent);
                     }
 
-                    if (member.State == MemberState.Alive)
-                    {
-                        RemoveAwaitingAck(member.GossipEndPoint); // stops dead claim escalation
-                    }
-
-                    else
+                    if (member.State != MemberState.Alive)
                     {
                         AddAwaitingAck(member.GossipEndPoint);
                     }
@@ -438,15 +452,12 @@ namespace GossipMesh.Core
         {
             lock (_locker)
             {
-                lock (_locker)
-                {
-                    return _members
-                        .Values
-                        .OrderBy(m => m.GossipCounter)
-                        .Where(m => !(_awaitingAcks.TryGetValue(m.GossipEndPoint, out var t) && DateTime.Now > t.AddMilliseconds(_options.ProtocolPeriodMilliseconds * 300)) &&
-                                    !EndPointsMatch(destinationGossipEndPoint, m.GossipEndPoint))
-                        .ToArray();
-                }
+                return _members
+                    .Values
+                    .OrderBy(m => m.GossipCounter)
+                    .Where(m => !(_awaitingAcks.TryGetValue(m.GossipEndPoint, out var t) && DateTime.Now > t.AddMilliseconds(_options.ProtocolPeriodMilliseconds * 300)) &&
+                                !EndPointsMatch(destinationGossipEndPoint, m.GossipEndPoint))
+                    .ToArray();
             }
         }
 
@@ -458,47 +469,22 @@ namespace GossipMesh.Core
             }
         }
 
-        private bool TryGetRandomGossipEndPoint(out IPEndPoint gossipEndPoint)
-        {
-            var success = false;
-            gossipEndPoint = null;
-
-            lock (_locker)
-            {
-                lock (_locker)
-                {
-                    var members = _members.Values.Where(m => !(_awaitingAcks.TryGetValue(m.GossipEndPoint, out var t) &&
-                                                                DateTime.Now > t.AddMilliseconds(_options.ProtocolPeriodMilliseconds * 300)));
-
-                    if (members.Any())
-                    {
-                        gossipEndPoint = members.ElementAt(_rand.Next(0, members.Count())).GossipEndPoint;
-                        success = true;
-                    }
-                }
-            }
-
-            return success;
-        }
-
-        private IEnumerable<IPEndPoint> GetRandomIndirectGossipEndPoints(IPEndPoint directGossipEndPoint)
+        private IEnumerable<IPEndPoint> GetRandomGossipEndPoints(int numberOfEndPoints, IPEndPoint directGossipEndPoint = null)
         {
             var members = GetMembers(directGossipEndPoint);
+            var randomIndex = _rand.Next(0, members.Length);
 
-            if (members.Length <= 1)
+            if (members.Length == 0)
             {
                 return Enumerable.Empty<IPEndPoint>();
             }
 
-            var randomIndex = _rand.Next(0, members.Length);
-
-            return Enumerable.Range(randomIndex, _options.NumberOfIndirectEndpoints + 1)
+            return Enumerable.Range(randomIndex, numberOfEndPoints)
                 .Select(ri => ri % members.Length) // wrap the range around to 0 if we hit the end
                 .Select(i => members[i])
-                .Where(m => m.GossipEndPoint != directGossipEndPoint)
                 .Select(m => m.GossipEndPoint)
                 .Distinct()
-                .Take(_options.NumberOfIndirectEndpoints);
+                .Take(numberOfEndPoints);
         }
 
         private void UpdateMemberState(IPEndPoint gossipEndPoint, MemberState memberState)
@@ -581,7 +567,7 @@ namespace GossipMesh.Core
         private bool IsVersionCompatible(byte version)
         {
             // can add more complex mapping for backwards compatibility
-            return _protocolVersion == version;
+            return PROTOCOL_VERSION == version;
         }
 
         public void Dispose()

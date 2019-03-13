@@ -36,18 +36,10 @@ namespace GreeterServer
         {
             var options = new GossiperOptions
             {
-                MaxUdpPacketBytes = 508,
-                ProtocolPeriodMilliseconds = 200,
-                NumberOfIndirectEndpoints = 2,
-                ListenPort = listenPort,
-                Service = 0x02,
-                ServicePort = listenPort,
                 SeedMembers = seeds,
-                MemberEventsListeners = Enumerable.Empty<IMemberEventsListener>(),
-                MemberListeners = Enumerable.Empty<IMemberListener>()
             };
 
-            var gossiper = new Gossiper(options, logger);
+            var gossiper = new Gossiper(listenPort, 0x02, listenPort, options, logger);
             gossiper.Start();
             return gossiper;
         }

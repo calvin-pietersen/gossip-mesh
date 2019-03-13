@@ -53,20 +53,15 @@ namespace GossipMesh.Seed
                 routes.MapHub<MembersHub>("/membersHub");
             });
 
+            var listenPort = ushort.Parse(_configuration["port"]);
             var options = new GossiperOptions
             {
-                MaxUdpPacketBytes = 508,
-                ProtocolPeriodMilliseconds = 200,
-                NumberOfIndirectEndpoints = 2,
-                ListenPort = ushort.Parse(_configuration["port"]),
-                Service = 0x01,
-                ServicePort = (ushort)5000,
                 SeedMembers = GetSeedEndPoints(),
                 MemberEventsListeners = memberEventListeners,
                 MemberListeners = memberListeners
             };
 
-            var gossiper = new Gossiper(options, logger);
+            var gossiper = new Gossiper(listenPort, 0x01, (ushort)5000, options, logger);
             gossiper.Start();
         }
 
