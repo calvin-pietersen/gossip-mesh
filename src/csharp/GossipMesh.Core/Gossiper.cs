@@ -33,23 +33,24 @@ namespace GossipMesh.Core
 
         public void Start()
         {
-            _logger.LogInformation("Gossip.Mesh starting Gossiper on {GossipEndPoint}", _self.GossipEndPoint);
+            Task.Run(async () => 
+            {
+                _logger.LogInformation("Gossip.Mesh starting Gossiper on {GossipEndPoint}", _self.GossipEndPoint);
+                _udpClient = CreateUdpClient(_self.GossipEndPoint);
+                PushToMemberListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
 
-            PushToMemberListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
+                // start listener
+                _ = Listener().ConfigureAwait(false);
 
-            _udpClient = CreateUdpClient(_self.GossipEndPoint);
+                // bootstrap off seeds
+                await Bootstraper().ConfigureAwait(false);
 
-            // bootstrap
-            Task.Run(async () => await Bootstraper().ConfigureAwait(false)).ConfigureAwait(false);
+                // gossip
+                _ = GossipPump().ConfigureAwait(false);
 
-            // receive requests
-            Task.Run(async () => await Listener().ConfigureAwait(false)).ConfigureAwait(false);
-
-            // gossip
-            Task.Run(async () => await GossipPump().ConfigureAwait(false)).ConfigureAwait(false);
-
-            // prune
-            Task.Run(async () => await Prune().ConfigureAwait(false)).ConfigureAwait(false);
+                // prune
+                _ = Prune().ConfigureAwait(false);
+            });
         }
 
         private async Task Bootstraper()
