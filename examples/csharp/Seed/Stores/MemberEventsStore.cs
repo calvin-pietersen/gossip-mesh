@@ -16,11 +16,6 @@ namespace GossipMesh.Seed.Stores
 
         public bool Add(MemberEvent memberEvent)
         {
-            if (memberEvent.SenderGossipEndPoint.Address.Equals(memberEvent.GossipEndPoint.Address) && memberEvent.SenderGossipEndPoint.Port == memberEvent.GossipEndPoint.Port)
-            {
-                return false;
-            }
-
             var wasAdded = true;
 
             lock (_memberEventsLocker)

@@ -24,7 +24,7 @@ namespace GreeterClient
             var logger = CreateLogger();
 
             var loadBalancer = CreateLoadBalancer();
-            var gossiper = StartGossiper(listenPort, seeds, new IMemberListener[] { loadBalancer }, logger);
+            var gossiper = await StartGossiper(listenPort, seeds, new IMemberListener[] { loadBalancer }, logger);
 
             var stopwatch = new Stopwatch();
             while (true)
@@ -68,7 +68,8 @@ namespace GreeterClient
 
             return new RandomLoadBalancer(serviceClientFactories);
         }
-        private static Gossiper StartGossiper(ushort listenPort, IPEndPoint[] seeds, IMemberListener[] memberListeners, ILogger logger)
+
+        private static async Task<Gossiper> StartGossiper(ushort listenPort, IPEndPoint[] seeds, IMemberListener[] memberListeners, ILogger logger)
         {
             var options = new GossiperOptions
             {
@@ -77,10 +78,11 @@ namespace GreeterClient
             };
 
             var gossiper = new Gossiper(listenPort, 0x03, listenPort, options, logger);
-            gossiper.Start();
+            await gossiper.StartAsync();
 
             return gossiper;
         }
+
         private static IPEndPoint IPEndPointFromString(string ipEndPointString)
         {
             var endpoint = ipEndPointString.Split(":");

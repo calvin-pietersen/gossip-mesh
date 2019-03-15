@@ -19,7 +19,7 @@ namespace GreeterServer
 
             var logger = CreateLogger();
             var server = StartGrpcServer(listenPort, logger);
-            var gossiper = StartGossiper(listenPort, seeds, logger);
+            var gossiper = await StartGossiper(listenPort, seeds, logger);
 
             await Task.Delay(-1);
             await server.ShutdownAsync();
@@ -32,7 +32,8 @@ namespace GreeterServer
             return loggerFactory
                 .CreateLogger<Program>();
         }
-        private static Gossiper StartGossiper(ushort listenPort, IPEndPoint[] seeds, ILogger logger)
+
+        private static async Task<Gossiper> StartGossiper(ushort listenPort, IPEndPoint[] seeds, ILogger logger)
         {
             var options = new GossiperOptions
             {
@@ -40,9 +41,11 @@ namespace GreeterServer
             };
 
             var gossiper = new Gossiper(listenPort, 0x02, listenPort, options, logger);
-            gossiper.Start();
+            await gossiper.StartAsync();
+
             return gossiper;
         }
+
         private static Server StartGrpcServer(ushort listenPort, ILogger logger)
         {
             Server server = new Server
@@ -54,6 +57,7 @@ namespace GreeterServer
             server.Start();
             return server;
         }
+
         private static IPEndPoint IPEndPointFromString(string ipEndPointString)
         {
             var endpoint = ipEndPointString.Split(":");

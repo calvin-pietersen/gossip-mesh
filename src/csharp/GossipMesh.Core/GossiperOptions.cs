@@ -30,7 +30,6 @@ namespace GossipMesh.Core
         public int FanoutFactor { get; set; } = 5;
         public int NumberOfIndirectEndpoints { get; set; } = 3;
         public IPEndPoint[] SeedMembers { get; set; } = new IPEndPoint[0];
-        public IEnumerable<IMemberEventsListener> MemberEventsListeners { get; set; } = Enumerable.Empty<IMemberEventsListener>();
         public IEnumerable<IMemberListener> MemberListeners { get; set; } = Enumerable.Empty<IMemberListener>();
     }
 }

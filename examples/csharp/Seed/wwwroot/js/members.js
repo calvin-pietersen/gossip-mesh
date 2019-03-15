@@ -30,8 +30,8 @@ connection.on("InitializationMessage", function (graph, memberEvents) {
     addMemberEventsToTable(memberEvents);
 });
 
-connection.on("MemberEventsMessage", function (memberEvents) {
-    addMemberEventsToTable(memberEvents);
+connection.on("MemberEventMessage", function (memberEvent) {
+    dataTable.row.add(memberEventToRecord(memberEvent)).draw();
 });
 
 connection.on("NodeUpdatedMessage", function (node) {

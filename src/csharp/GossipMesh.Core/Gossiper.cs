@@ -31,59 +31,52 @@ namespace GossipMesh.Core
             _self = new Member(MemberState.Alive, IPAddress.Any, listenPort, 1, service, servicePort);
         }
 
-        public void Start()
+        public async Task StartAsync()
         {
-            Task.Run(async () => 
-            {
-                _logger.LogInformation("Gossip.Mesh starting Gossiper on {GossipEndPoint}", _self.GossipEndPoint);
-                _udpClient = CreateUdpClient(_self.GossipEndPoint);
-                PushToMemberListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
+            _logger.LogInformation("Gossip.Mesh starting Gossiper on {GossipEndPoint}", _self.GossipEndPoint);
+            _udpClient = CreateUdpClient(_self.GossipEndPoint);
+            PushToMemberListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
 
-                // start listener
-                _ = Listener().ConfigureAwait(false);
+            // start listener
+            _ = Listener().ConfigureAwait(false);
 
-                // bootstrap off seeds
-                await Bootstraper().ConfigureAwait(false);
+            // bootstrap off seeds
+            await Bootstraper().ConfigureAwait(false);
 
-                // gossip
-                _ = GossipPump().ConfigureAwait(false);
+            // gossip
+            _ = GossipPump().ConfigureAwait(false);
 
-                // prune
-                _ = Prune().ConfigureAwait(false);
-            });
+            // prune
+            _ = Prune().ConfigureAwait(false);
         }
 
         private async Task Bootstraper()
         {
-            if (_options.SeedMembers?.Length > 0)
-            {
-                _logger.LogInformation("Gossip.Mesh bootstrapping off seeds");
-
-                // ideally we want to bootstap over tcp but for now we will ping seeds and stop bootstrapping when we get back some members
-                while (IsMembersEmpty())
-                {
-                    try
-                    {
-                        // ping seed
-                        var i = _rand.Next(0, _options.SeedMembers.Length);
-                        await PingAsync(_options.SeedMembers[i]).ConfigureAwait(false);
-                    }
-
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
-                    }
-
-                    await Task.Delay(_options.ProtocolPeriodMilliseconds).ConfigureAwait(false);
-                }
-
-                _logger.LogInformation("Gossip.Mesh finished bootstrapping");
-            }
-
-            else
+            if (_options.SeedMembers == null || _options.SeedMembers.Length == 0)
             {
                 _logger.LogInformation("Gossip.Mesh no seeds to bootstrap off");
+                return;
             }
+
+            _logger.LogInformation("Gossip.Mesh bootstrapping off seeds");
+
+            while (IsMembersEmpty())
+            {
+                try
+                {
+                    var i = _rand.Next(0, _options.SeedMembers.Length);
+                    await PingAsync(_options.SeedMembers[i]).ConfigureAwait(false);
+                }
+
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
+                }
+
+                await Task.Delay(_options.ProtocolPeriodMilliseconds).ConfigureAwait(false);
+            }
+
+            _logger.LogInformation("Gossip.Mesh finished bootstrapping");
         }
 
         private async Task Listener()
@@ -127,7 +120,6 @@ namespace GossipMesh.Core
                             UpdateMembers(request.RemoteEndPoint, receivedDateTime, stream);
                             await RequestHandler(request, messageType, sourceGossipEndPoint, destinationGossipEndPoint).ConfigureAwait(false);
                         }
-
 
                         else
                         {
@@ -334,8 +326,6 @@ namespace GossipMesh.Core
 
         private void UpdateMembers(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Stream stream)
         {
-            var memberEvents = new List<MemberEvent>();
-
             // read sender
             var memberEvent = MemberEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream, true);
 
@@ -349,14 +339,12 @@ namespace GossipMesh.Core
                 _self.Generation = (byte)(selfClaimedGeneration + 1);
                 _logger.LogInformation("Gossip.Mesh received a claim about self, state:{state} generation:{generation}. Raising generation to {generation}", selfClaimedState, selfClaimedGeneration, _self.Generation);
 
-                memberEvents.Add(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
+                PushToMemberListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
             }
 
             // handler sender and everyone else
             while (memberEvent != null)
             {
-                memberEvents.Add(memberEvent);
-
                 lock (_locker)
                 {
                     if (_members.TryGetValue(memberEvent.GossipEndPoint, out var member) &&
@@ -366,9 +354,7 @@ namespace GossipMesh.Core
                         member.Update(memberEvent);
                         _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
 
-                        var selfMemberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
-                        PushToMemberListeners(selfMemberEvent);
-                        memberEvents.Add(selfMemberEvent);
+                        PushToMemberListeners(memberEvent);
                     }
 
                     else if (member == null)
@@ -377,9 +363,7 @@ namespace GossipMesh.Core
                         _members.Add(member.GossipEndPoint, member);
                         _logger.LogInformation("Gossip.Mesh member added {member}", member);
 
-                        var selfMemberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
-                        PushToMemberListeners(selfMemberEvent);
-                        memberEvents.Add(selfMemberEvent);
+                        PushToMemberListeners(memberEvent);
                     }
 
                     if (member.State != MemberState.Alive)
@@ -390,8 +374,6 @@ namespace GossipMesh.Core
 
                 memberEvent = MemberEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream);
             }
-
-            PushToMemberEventsListeners(memberEvents);
         }
 
         private void WriteMembers(Stream stream, IPEndPoint destinationGossipEndPoint)
@@ -499,7 +481,6 @@ namespace GossipMesh.Core
 
                     var memberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
                     PushToMemberListeners(memberEvent);
-                    PushToMemberEventsListeners(new MemberEvent[] { memberEvent });
                 }
             }
         }
@@ -547,14 +528,6 @@ namespace GossipMesh.Core
             var syncTime = Math.Max(_options.ProtocolPeriodMilliseconds - (int)(DateTime.Now - _lastProtocolPeriod).TotalMilliseconds, 0);
             await Task.Delay(syncTime).ConfigureAwait(false);
             _lastProtocolPeriod = DateTime.Now;
-        }
-
-        private void PushToMemberEventsListeners(IEnumerable<MemberEvent> memberEvents)
-        {
-            foreach (var listener in _options.MemberEventsListeners)
-            {
-                listener.MemberEventsCallback(memberEvents).ConfigureAwait(false);
-            }
         }
 
         private void PushToMemberListeners(MemberEvent memberEvent)
