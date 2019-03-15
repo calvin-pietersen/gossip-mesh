@@ -47,7 +47,7 @@ namespace GossipMesh.Core
             _ = GossipPump().ConfigureAwait(false);
 
             // prune
-            _ = Prune().ConfigureAwait(false);
+            _ = DeadMemberHandler().ConfigureAwait(false);
         }
 
         private async Task Bootstraper()
@@ -182,11 +182,6 @@ namespace GossipMesh.Core
                     await RequestPingAsync(gossipEndPoint, indirectEndpoints).ConfigureAwait(false);
 
                     await Task.Delay(_options.AckTimeoutMilliseconds).ConfigureAwait(false);
-
-                    if (WasNotAcked(gossipEndPoint))
-                    {
-                        UpdateMemberState(gossipEndPoint, MemberState.Dead);
-                    }
                 }
             }
 
@@ -196,7 +191,7 @@ namespace GossipMesh.Core
             }
         }
 
-        private async Task Prune()
+        private async Task DeadMemberHandler()
         {
             while (true)
             {
@@ -217,10 +212,15 @@ namespace GossipMesh.Core
 
                             _awaitingAcks.Remove(awaitingAck.Key);
                         }
+
+                        else if (DateTime.Now > awaitingAck.Value.AddMilliseconds(_options.ProtocolPeriodMilliseconds * 5))
+                        {
+                            UpdateMemberState(awaitingAck.Key, MemberState.Dead);
+                        }
                     }
                 }
 
-                await Task.Delay(10000).ConfigureAwait(false);
+                await Task.Delay(1000).ConfigureAwait(false);
             }
         }
 
