@@ -351,6 +351,12 @@ namespace GossipMesh.Core
                         (member.IsLaterGeneration(memberEvent.Generation) ||
                         (member.Generation == memberEvent.Generation && member.IsStateSuperseded(memberEvent.State))))
                     {
+                        // stops state escalation
+                        if (memberEvent.State == MemberState.Alive && memberEvent.Generation > member.Generation)
+                        {
+                            RemoveAwaitingAck(memberEvent.GossipEndPoint);
+                        }
+
                         member.Update(memberEvent);
                         _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
 
