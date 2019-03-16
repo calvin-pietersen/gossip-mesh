@@ -16,7 +16,7 @@ namespace GossipMesh.Core
         private readonly Member _self;
         private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
         private volatile Dictionary<IPEndPoint, DateTime> _awaitingAcks = new Dictionary<IPEndPoint, DateTime>();
-        private DateTime _lastProtocolPeriod = DateTime.Now;
+        private DateTime _lastProtocolPeriod = DateTime.UtcNow;
         private readonly Random _rand = new Random();
         private UdpClient _udpClient;
 
@@ -201,18 +201,21 @@ namespace GossipMesh.Core
                     {
                         foreach (var awaitingAck in _awaitingAcks.ToArray())
                         {
-                            if (DateTime.Now > awaitingAck.Value.AddMilliseconds(_options.PruneTimeoutMilliseconds))
+                            if (DateTime.UtcNow > awaitingAck.Value.AddMilliseconds(_options.PruneTimeoutMilliseconds))
                             {
                                 if (_members.TryGetValue(awaitingAck.Key, out var member) && (member.State == MemberState.Dead || member.State == MemberState.Left))
                                 {
                                     _members.Remove(awaitingAck.Key);
                                     _logger.LogInformation("Gossip.Mesh pruned member {member}", member);
+
+                                    member.Update(MemberState.Pruned);
+                                    PushToMemberListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
                                 }
 
                                 _awaitingAcks.Remove(awaitingAck.Key);
                             }
 
-                            else if (DateTime.Now > awaitingAck.Value.AddMilliseconds(_options.DeadTimeoutMilliseconds))
+                            else if (DateTime.UtcNow > awaitingAck.Value.AddMilliseconds(_options.DeadTimeoutMilliseconds))
                             {
                                 UpdateMemberState(awaitingAck.Key, MemberState.Dead);
                             }
@@ -449,7 +452,7 @@ namespace GossipMesh.Core
                 return _members
                     .Values
                     .OrderBy(m => m.GossipCounter)
-                    .Where(m => !(_awaitingAcks.TryGetValue(m.GossipEndPoint, out var t) && DateTime.Now > t.AddMilliseconds(_options.DeadCoolOffMilliseconds)) &&
+                    .Where(m => !(_awaitingAcks.TryGetValue(m.GossipEndPoint, out var t) && DateTime.UtcNow > t.AddMilliseconds(_options.DeadCoolOffMilliseconds)) &&
                                 !EndPointsMatch(destinationGossipEndPoint, m.GossipEndPoint))
                     .ToArray();
             }
@@ -502,7 +505,7 @@ namespace GossipMesh.Core
             {
                 if (!_awaitingAcks.ContainsKey(gossipEndPoint))
                 {
-                    _awaitingAcks.Add(gossipEndPoint, DateTime.Now);
+                    _awaitingAcks.Add(gossipEndPoint, DateTime.UtcNow);
                 }
             }
         }
@@ -536,9 +539,9 @@ namespace GossipMesh.Core
 
         private async Task WaitForProtocolPeriod()
         {
-            var syncTime = Math.Max(_options.ProtocolPeriodMilliseconds - (int)(DateTime.Now - _lastProtocolPeriod).TotalMilliseconds, 0);
+            var syncTime = Math.Max(_options.ProtocolPeriodMilliseconds - (int)(DateTime.UtcNow - _lastProtocolPeriod).TotalMilliseconds, 0);
             await Task.Delay(syncTime).ConfigureAwait(false);
-            _lastProtocolPeriod = DateTime.Now;
+            _lastProtocolPeriod = DateTime.UtcNow;
         }
 
         private void PushToMemberListeners(MemberEvent memberEvent)
