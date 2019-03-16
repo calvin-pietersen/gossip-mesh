@@ -38,16 +38,16 @@ namespace GossipMesh.Core
             PushToMemberListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
 
             // start listener
-            _ = Listener().ConfigureAwait(false);
+            Listener();
 
             // bootstrap off seeds
             await Bootstraper().ConfigureAwait(false);
 
             // gossip
-            _ = GossipPump().ConfigureAwait(false);
+            GossipPump();
 
-            // prune
-            _ = DeadMemberHandler().ConfigureAwait(false);
+            // detect dead members and prune old members
+            DeadMemberHandler();
         }
 
         private async Task Bootstraper()
@@ -79,7 +79,7 @@ namespace GossipMesh.Core
             _logger.LogInformation("Gossip.Mesh finished bootstrapping");
         }
 
-        private async Task Listener()
+        private async void Listener()
         {
             while (true)
             {
@@ -137,7 +137,7 @@ namespace GossipMesh.Core
             }
         }
 
-        private async Task GossipPump()
+        private async void GossipPump()
         {
             while (true)
             {
@@ -191,33 +191,38 @@ namespace GossipMesh.Core
             }
         }
 
-        private async Task DeadMemberHandler()
+        private async void DeadMemberHandler()
         {
             while (true)
             {
-                lock (_locker)
+                try
                 {
-                    foreach (var awaitingAck in _awaitingAcks.ToArray())
+                    lock (_locker)
                     {
-                        if (DateTime.Now > awaitingAck.Value.AddMilliseconds(_options.ProtocolPeriodMilliseconds * 600))
+                        foreach (var awaitingAck in _awaitingAcks.ToArray())
                         {
-                            lock (_locker)
+                            if (DateTime.Now > awaitingAck.Value.AddMilliseconds(_options.PruneTimeoutMilliseconds))
                             {
                                 if (_members.TryGetValue(awaitingAck.Key, out var member) && (member.State == MemberState.Dead || member.State == MemberState.Left))
                                 {
                                     _members.Remove(awaitingAck.Key);
                                     _logger.LogInformation("Gossip.Mesh pruned member {member}", member);
                                 }
+
+                                _awaitingAcks.Remove(awaitingAck.Key);
                             }
 
-                            _awaitingAcks.Remove(awaitingAck.Key);
-                        }
-
-                        else if (DateTime.Now > awaitingAck.Value.AddMilliseconds(_options.ProtocolPeriodMilliseconds * 5))
-                        {
-                            UpdateMemberState(awaitingAck.Key, MemberState.Dead);
+                            else if (DateTime.Now > awaitingAck.Value.AddMilliseconds(_options.DeadTimeoutMilliseconds))
+                            {
+                                UpdateMemberState(awaitingAck.Key, MemberState.Dead);
+                            }
                         }
                     }
+                }
+
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
                 }
 
                 await Task.Delay(1000).ConfigureAwait(false);
@@ -444,7 +449,7 @@ namespace GossipMesh.Core
                 return _members
                     .Values
                     .OrderBy(m => m.GossipCounter)
-                    .Where(m => !(_awaitingAcks.TryGetValue(m.GossipEndPoint, out var t) && DateTime.Now > t.AddMilliseconds(_options.ProtocolPeriodMilliseconds * 300)) &&
+                    .Where(m => !(_awaitingAcks.TryGetValue(m.GossipEndPoint, out var t) && DateTime.Now > t.AddMilliseconds(_options.DeadCoolOffMilliseconds)) &&
                                 !EndPointsMatch(destinationGossipEndPoint, m.GossipEndPoint))
                     .ToArray();
             }
