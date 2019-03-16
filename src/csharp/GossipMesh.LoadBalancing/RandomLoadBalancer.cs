@@ -21,12 +21,12 @@ namespace GossipMesh.LoadBalancing
             _serviceClientFactories = serviceClientFactories;
         }
 
-        public async Task MemberUpdatedCallback(MemberEvent memberEvent)
+        public Task MemberUpdatedCallback(MemberEvent memberEvent)
         {
             IServiceClientFactory serviceClientFactory;
             if (!_serviceClientFactories.TryGetValue(memberEvent.Service, out serviceClientFactory))
             {
-                return;
+                return Task.CompletedTask;
             }
 
             lock (_serviceToServiceClientsLocker)
@@ -55,11 +55,13 @@ namespace GossipMesh.LoadBalancing
 
                 else
                 {
-                    return;
+                    return Task.CompletedTask;
                 }
 
                 newServiceToServiceClients[memberEvent.Service] = newServiceClients;
                 _serviceToServiceClients = newServiceToServiceClients;
+
+                return Task.CompletedTask;
             }
         }
 
