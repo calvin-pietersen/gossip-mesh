@@ -15,9 +15,9 @@ namespace GossipMesh.Seed.Stores
         private readonly Dictionary<IPEndPoint, Graph.Node> _nodes = new Dictionary<IPEndPoint, Graph.Node>();
         private readonly Random _random = new Random();
 
-        public bool TryAddOrUpdateNode(MemberEvent memberEvent, out Graph.Node node)
+        public Graph.Node AddOrUpdateNode(MemberEvent memberEvent)
         {
-            var wasAddedOrUpdated = false;
+            Graph.Node node;
             lock (_memberGraphLocker)
             {
                 if (!_nodes.TryGetValue(memberEvent.GossipEndPoint, out node))
@@ -35,11 +35,9 @@ namespace GossipMesh.Seed.Stores
                     };
 
                     _nodes.Add(memberEvent.GossipEndPoint, node);
-                    wasAddedOrUpdated = true;
                 }
 
-                else if (memberEvent.Generation > node.Generation ||
-                    (memberEvent.Generation == node.Generation && memberEvent.State > node.State))
+                else if (memberEvent.State == MemberState.Alive)
                 {
                     node = new Graph.Node
                     {
@@ -54,11 +52,35 @@ namespace GossipMesh.Seed.Stores
                     };
 
                     _nodes[memberEvent.GossipEndPoint] = node;
-                    wasAddedOrUpdated = true;
                 }
-            }
 
-            return wasAddedOrUpdated;
+                else
+                {
+                    node = new Graph.Node
+                    {
+                        Id = memberEvent.GossipEndPoint,
+                        Ip = memberEvent.IP,
+                        State = memberEvent.State,
+                        Generation = memberEvent.Generation,
+                        Service = node.Service,
+                        ServicePort = node.ServicePort,
+                        X = node.X,
+                        Y = node.Y
+                    };
+
+                    if (memberEvent.State == MemberState.Pruned)
+                    {
+                        _nodes.Remove(memberEvent.GossipEndPoint);
+                    }
+
+                    else
+                    {
+                        _nodes[memberEvent.GossipEndPoint] = node;
+                    }
+                }
+
+                return node;
+            }
         }
 
         public Graph GetGraph()
