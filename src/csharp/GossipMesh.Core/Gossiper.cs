@@ -172,16 +172,18 @@ namespace GossipMesh.Core
                 await PingAsync(gossipEndPoint).ConfigureAwait(false);
 
                 await Task.Delay(_options.AckTimeoutMilliseconds).ConfigureAwait(false);
-                // check was not acked
+
                 if (WasNotAcked(gossipEndPoint))
                 {
-                    _logger.LogDebug("in here with endpoint {gossipEndPoint}", gossipEndPoint);
-                    UpdateMemberState(gossipEndPoint, MemberState.Suspicious);
                     var indirectEndpoints = GetRandomGossipEndPoints(_options.NumberOfIndirectEndpoints, gossipEndPoint);
-
                     await RequestPingAsync(gossipEndPoint, indirectEndpoints).ConfigureAwait(false);
 
                     await Task.Delay(_options.AckTimeoutMilliseconds).ConfigureAwait(false);
+                }
+
+                if (WasNotAcked(gossipEndPoint))
+                {
+                    UpdateMemberState(gossipEndPoint, MemberState.Suspicious);
                 }
             }
 
