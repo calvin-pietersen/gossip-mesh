@@ -48,6 +48,24 @@ namespace GossipMesh.Core
 
             // detect dead members and prune old members
             DeadMemberHandler();
+
+            // low frequency ping to seeds
+            SplitBrainGaurd();
+        }
+
+        private async Task PingRandomSeed()
+        {
+            try
+            {
+                var i = _rand.Next(0, _options.SeedMembers.Length);
+                await PingAsync(_options.SeedMembers[i]).ConfigureAwait(false);
+            }
+
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
+            }
+
         }
 
         private async Task Bootstraper()
@@ -62,21 +80,20 @@ namespace GossipMesh.Core
 
             while (IsMembersEmpty())
             {
-                try
-                {
-                    var i = _rand.Next(0, _options.SeedMembers.Length);
-                    await PingAsync(_options.SeedMembers[i]).ConfigureAwait(false);
-                }
-
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
-                }
-
+                await PingRandomSeed().ConfigureAwait(false);
                 await Task.Delay(_options.ProtocolPeriodMilliseconds).ConfigureAwait(false);
             }
 
             _logger.LogInformation("Gossip.Mesh finished bootstrapping");
+        }
+
+        private async void SplitBrainGaurd()
+        {
+            while (true)
+            {
+                await Task.Delay(_options.SplitBrainGaurdPeriodMilliseconds).ConfigureAwait(false);
+                await PingRandomSeed().ConfigureAwait(false);
+            }
         }
 
         private async void Listener()
