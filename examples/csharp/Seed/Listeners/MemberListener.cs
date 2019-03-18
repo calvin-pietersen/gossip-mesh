@@ -28,13 +28,9 @@ namespace GossipMesh.Seed.Listeners
 
         public async Task MemberUpdatedCallback(MemberEvent memberEvent)
         {
+            _memberEventsStore.Add(memberEvent);
             var node = _memberGraphStore.AddOrUpdateNode(memberEvent);
-            await _membersHubContext.Clients.All.SendAsync("NodeUpdatedMessage", node).ConfigureAwait(false);
-
-            if (_memberEventsStore.Add(memberEvent))
-            {
-                await _membersHubContext.Clients.All.SendAsync("MemberEventMessage", memberEvent).ConfigureAwait(false);
-            }
+            await _membersHubContext.Clients.All.SendAsync("MemberUpdatedMessage", memberEvent, node).ConfigureAwait(false);
         }
     }
 }

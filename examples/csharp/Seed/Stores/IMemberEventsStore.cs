@@ -7,7 +7,7 @@ namespace GossipMesh.Seed.Stores
 {
     public interface IMemberEventsStore
     {
-        bool Add(MemberEvent memberEvent);
+        void Add(MemberEvent memberEvent);
 
         MemberEvent[]  GetAll();
     }

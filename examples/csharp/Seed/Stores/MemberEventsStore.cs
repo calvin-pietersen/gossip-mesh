@@ -12,52 +12,18 @@ namespace GossipMesh.Seed.Stores
     public class MemberEventsStore : IMemberEventsStore
     {
         private readonly object _memberEventsLocker = new Object();
-        private readonly Dictionary<IPEndPoint, Dictionary<IPEndPoint, List<MemberEvent>>> _memberEvents = new Dictionary<IPEndPoint, Dictionary<IPEndPoint, List<MemberEvent>>>();
+        private readonly List<MemberEvent> _memberEvents = new List<MemberEvent>();
 
-        public bool Add(MemberEvent memberEvent)
+        public void Add(MemberEvent memberEvent)
         {
-            var wasAdded = true;
-
-            lock (_memberEventsLocker)
-            {
-                if (_memberEvents.TryGetValue(memberEvent.SenderGossipEndPoint, out var senderMemberEvents) &&
-                    senderMemberEvents.TryGetValue(memberEvent.GossipEndPoint, out var memberEvents))
-                {
-                    if (memberEvents.Last().NotEqual(memberEvent))
-                    {
-                        memberEvents.Add(memberEvent);
-                    }
-
-                    else
-                    {
-                        wasAdded = false;
-                    }
-                }
-
-                else if (senderMemberEvents == null)
-                {
-                    _memberEvents.Add(memberEvent.SenderGossipEndPoint, new Dictionary<IPEndPoint, List<MemberEvent>>
-                    {
-                        { memberEvent.GossipEndPoint, new List<MemberEvent> { memberEvent} }
-                    });
-                }
-
-                else
-                {
-                    senderMemberEvents.Add(memberEvent.GossipEndPoint, new List<MemberEvent> { memberEvent });
-                }
-            }
-
-            return wasAdded;
+            _memberEvents.Add(memberEvent);
         }
 
         public MemberEvent[] GetAll()
         {
             lock (_memberEventsLocker)
             {
-                return _memberEvents
-                        .SelectMany(senderMemberEvents => senderMemberEvents.Value
-                            .SelectMany(memberEvents => memberEvents.Value)).ToArray();
+                return _memberEvents.ToArray();
             }
         }
     }

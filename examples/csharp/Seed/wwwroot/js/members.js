@@ -30,18 +30,12 @@ connection.on("InitializationMessage", function (graph, memberEvents) {
     addMemberEventsToTable(memberEvents);
 });
 
-connection.on("MemberEventMessage", function (memberEvent) {
+connection.on("MemberUpdatedMessage", function (memberEvent, node) {
     dataTable.row.add(memberEventToRecord(memberEvent)).draw();
-});
 
-connection.on("NodeUpdatedMessage", function (node) {
-    if (node.state === "Pruned")
-    {
+    if (node.state === "Pruned") {
         delete nodes[node.id];
-    }
-
-    else
-    {
+    } else {
         nodes[node.id] = node;
     }
 
