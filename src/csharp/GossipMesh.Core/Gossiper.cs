@@ -346,6 +346,8 @@ namespace GossipMesh.Core
             if (_self.IsLaterGeneration(selfClaimedGeneration) ||
                 (selfClaimedState != MemberState.Alive && selfClaimedGeneration == _self.Generation))
             {
+                PushToMemberListeners(new MemberEvent(senderGossipEndPoint, receivedDateTime, _self.IP, _self.GossipPort, selfClaimedState, selfClaimedGeneration));
+
                 _self.Generation = (byte)(selfClaimedGeneration + 1);
                 _logger.LogInformation("Gossip.Mesh received a claim about self, state:{state} generation:{generation}. Raising generation to {generation}", selfClaimedState, selfClaimedGeneration, _self.Generation);
 

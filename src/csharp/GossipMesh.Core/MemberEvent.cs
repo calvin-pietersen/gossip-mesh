@@ -26,6 +26,17 @@ namespace GossipMesh.Core
         {
         }
 
+        internal MemberEvent(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, IPAddress ip, ushort gossipPort, MemberState state, byte generation)
+        {
+            SenderGossipEndPoint = senderGossipEndPoint;
+            ReceivedDateTime = receivedDateTime;
+
+            IP = ip;
+            GossipPort = gossipPort;
+            State = state;
+            Generation = generation;
+        }
+
         internal MemberEvent(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Member member)
         {
             SenderGossipEndPoint = senderGossipEndPoint;
