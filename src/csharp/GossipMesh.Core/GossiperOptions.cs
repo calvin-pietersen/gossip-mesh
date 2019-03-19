@@ -12,9 +12,9 @@ namespace GossipMesh.Core
     public class GossiperOptions
     {
         public int MaxUdpPacketBytes { get; set; } = 508;
-        private int _protocolPeriodMilliseconds = 250;
-        private int _ackTimeoutMilliseconds = 125;
-        private int _deadTimeoutMilliseconds = 1000;
+        private int _protocolPeriodMilliseconds = 500;
+        private int _ackTimeoutMilliseconds = 250;
+        private int _deadTimeoutMilliseconds = 5000;
         public int ProtocolPeriodMilliseconds
         {
             get
@@ -25,7 +25,7 @@ namespace GossipMesh.Core
             {
                 _protocolPeriodMilliseconds = value;
                 _ackTimeoutMilliseconds = value / 2;
-                _deadTimeoutMilliseconds = value * 5;
+                _deadTimeoutMilliseconds = value * 10;
             }
         }
         public int AckTimeoutMilliseconds { get { return _ackTimeoutMilliseconds; } }
