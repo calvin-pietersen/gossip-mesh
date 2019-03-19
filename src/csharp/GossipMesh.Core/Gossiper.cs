@@ -49,8 +49,8 @@ namespace GossipMesh.Core
             // detect dead members and prune old members
             DeadMemberHandler();
 
-            // low frequency ping to seeds
-            SplitBrainGaurd();
+            // low frequency ping to seeds to avoid network partitioning
+            NetworkPartitionGaurd();
         }
 
         private async Task PingRandomSeed()
@@ -87,11 +87,18 @@ namespace GossipMesh.Core
             _logger.LogInformation("Gossip.Mesh finished bootstrapping");
         }
 
-        private async void SplitBrainGaurd()
+        private async void NetworkPartitionGaurd()
         {
             while (true)
             {
-                await Task.Delay(_options.SplitBrainGaurdPeriodMilliseconds).ConfigureAwait(false);
+                var n = 0;
+                lock (_locker)
+                {
+                    n = _members.Count() * 1000;
+                }
+
+                // wait the max of either 1m or 1s for each member
+                await Task.Delay(Math.Max(60000, n)).ConfigureAwait(false);
                 await PingRandomSeed().ConfigureAwait(false);
             }
         }
