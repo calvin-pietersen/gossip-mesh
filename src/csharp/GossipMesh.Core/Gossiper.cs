@@ -89,6 +89,11 @@ namespace GossipMesh.Core
 
         private async void NetworkPartitionGaurd()
         {
+            if (_options.SeedMembers == null || _options.SeedMembers.Length == 0)
+            {
+                return;
+            }
+
             while (true)
             {
                 var n = 0;

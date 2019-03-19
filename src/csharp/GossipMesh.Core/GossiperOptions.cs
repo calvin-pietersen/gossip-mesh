@@ -30,8 +30,8 @@ namespace GossipMesh.Core
         }
         public int AckTimeoutMilliseconds { get { return _ackTimeoutMilliseconds; } }
         public int DeadTimeoutMilliseconds { get { return _deadTimeoutMilliseconds; } }
-        public int DeadCoolOffMilliseconds { get; set; } = 30000;
-        public int PruneTimeoutMilliseconds { get; set; } = 60000;
+        public int DeadCoolOffMilliseconds { get; set; } = 300000;
+        public int PruneTimeoutMilliseconds { get; set; } = 600000;
         public int FanoutFactor { get; set; } = 3;
         public int NumberOfIndirectEndpoints { get; set; } = 3;
         public IPEndPoint[] SeedMembers { get; set; } = new IPEndPoint[0];
