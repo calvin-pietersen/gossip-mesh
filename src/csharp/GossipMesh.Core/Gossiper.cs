@@ -206,6 +206,7 @@ namespace GossipMesh.Core
                 {
                     var indirectEndpoints = GetRandomGossipEndPoints(_options.NumberOfIndirectEndpoints, gossipEndPoint);
                     await RequestPingAsync(gossipEndPoint, indirectEndpoints).ConfigureAwait(false);
+                    await PingAsync(gossipEndPoint).ConfigureAwait(false);
 
                     await Task.Delay(_options.AckTimeoutMilliseconds).ConfigureAwait(false);
                 }
