@@ -130,11 +130,6 @@ communicated about nodes:
     service is exposed (the IP is assumed to be the same as the
     gossiper)
 
-  - the current "network coordinates" of that node, relative to
-    others; these coordinates are an abstract way of attempting to
-    capture the round-trip time to talk to different nodes in the
-    cluster.
-
 Each node also has a _generation_, which is used to determine the
 ordering of events. `A`'s generation value should only ever be changed
 by `A` itself.
@@ -149,11 +144,11 @@ The membership and discovery portion of a message has three parts:
 
 They have the following components:
 
-| Type     | IP      | Port                | State              | Generation | Service | Service port        | Coordinates              |
-|----------|---------|---------------------|--------------------|------------|---------|---------------------|--------------------------|
-| sender   | N/A     | N/A                 | implicitly `alive` | 1 byte     | 1 byte  | 2 bytes, big endian | 4 bytes, `x`,`y`,`h`,`c` |
-| receiver | N/A     | N/A                 | 1 byte             | 1 byte     | N/A     | N/A                 | N/A                      |
-| other    | 4 bytes | 2 bytes, big endian | 1 byte             | 1 byte     | 1 byte  | 2 bytes, big endian | 4 bytes, `x`,`y`,`h`,`c` |
+| Type     | IP      | Port                | State              | Generation | Service | Service port        |
+|----------|---------|---------------------|--------------------|------------|---------|---------------------|
+| sender   | N/A     | N/A                 | implicitly `alive` | 1 byte     | 1 byte  | 2 bytes, big endian |
+| receiver | N/A     | N/A                 | 1 byte             | 1 byte     | N/A     | N/A                 |
+| other    | 4 bytes | 2 bytes, big endian | 1 byte             | 1 byte     | 1 byte  | 2 bytes, big endian |
 
 ### Node states
 
@@ -198,11 +193,6 @@ any other nodes, it may mark other nodes as `suspicious` or `dead`
 based on the judgements of the Failure Detection component. If those
 other nodes are still alive then they will refute `A`s judgement by
 increasing their generation and declaring themselves to be `alive`.
-
-### Network Coordinates
-
-TODO: write this section about network coordinates, and how to
-calculate them.
 
 <!-- Local Variables: -->
 <!-- eval: (flycheck-mode 1) -->
