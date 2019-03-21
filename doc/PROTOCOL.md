@@ -108,7 +108,7 @@ These messages are encoded as follows:
 | `request` `ack`    | 0x04       | 4 bytes | 2 bytes, big endian | goes to IP/port    |
 | `request` `ping`   | 0x05       | 4 bytes | 2 bytes, big endian | goes to IP/port    |
 | `forwarded` `ack`  | 0x06       | 4 bytes | 2 bytes, big endian | comes from IP/port |
-| `forwarded` `ping` | 0x06       | 4 bytes | 2 bytes, big endian | comes from IP/port |
+| `forwarded` `ping` | 0x07       | 4 bytes | 2 bytes, big endian | comes from IP/port |
 
 Each node should periodically send `ping` messages to a random subset
 of nodes known to the Membership and Discovery component. The period
