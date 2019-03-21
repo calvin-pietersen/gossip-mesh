@@ -144,11 +144,11 @@ The membership and discovery portion of a message has three parts:
 
 They have the following components:
 
-| Type     | IP      | Port                | State              | Generation | Service | Service port        |
-|----------|---------|---------------------|--------------------|------------|---------|---------------------|
-| sender   | N/A     | N/A                 | implicitly `alive` | 1 byte     | 1 byte  | 2 bytes, big endian |
-| receiver | N/A     | N/A                 | 1 byte             | 1 byte     | N/A     | N/A                 |
-| other    | 4 bytes | 2 bytes, big endian | 1 byte             | 1 byte     | 1 byte  | 2 bytes, big endian |
+| Type     | IP      | Port                | State                        | Generation | Service | Service port        |
+|----------|---------|---------------------|------------------------------|------------|---------|---------------------|
+| sender   | N/A     | N/A                 | 0 bytes (implicitly `alive`) | 1 byte     | 1 byte  | 2 bytes, big endian |
+| receiver | N/A     | N/A                 | 1 byte                       | 1 byte     | N/A     | N/A                 |
+| other    | 4 bytes | 2 bytes, big endian | 1 byte                       | 1 byte     | 1 byte  | 2 bytes, big endian |
 
 ### Node states
 
