@@ -150,6 +150,11 @@ They have the following components:
 | receiver | N/A     | N/A                 | 1 byte                       | 1 byte     | N/A     | N/A                 |
 | other    | 4 bytes | 2 bytes, big endian | 1 byte                       | 1 byte     | 1 byte  | 2 bytes, big endian |
 
+When a sender is first contacting another node (ie. before joining the
+network) they may not have any state or generation information for the
+receiving node. In this case they should assume the receiver is `dead`
+and at generation `0` (which will be refuted by the receiver).
+
 ### Node states
 
 There are four possible node states:
