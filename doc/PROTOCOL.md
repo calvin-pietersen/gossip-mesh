@@ -56,7 +56,7 @@ corresponding to the two components described above.
     | Version (1 byte) | Failure detection data | Membership and discovery data |
     +------------------+------------------------+-------------------------------+
 
-The current protocol version number is `0`.
+The current protocol version number is `1`.
 
 The failure detection and membership data segments are each variable
 number of bytes long, and are explained in the following sections.
