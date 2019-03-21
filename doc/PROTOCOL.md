@@ -199,6 +199,14 @@ based on the judgements of the Failure Detection component. If those
 other nodes are still alive then they will refute `A`s judgement by
 increasing their generation and declaring themselves to be `alive`.
 
+When `A` wants to refute another node calling it suspicious/dead, it
+must ensure that its generation is later than the generation of the
+suspicious/dead data. For example: if `A` receives a message claiming
+that it is suspicious at generation `3`, it should increment its
+generation to `4` before sending any more messages. If its generation
+is already greater than `3` then it can continue to use its current
+generation.
+
 <!-- Local Variables: -->
 <!-- eval: (flycheck-mode 1) -->
 <!-- End: -->
