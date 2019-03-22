@@ -1,6 +1,9 @@
 # Running the Seed UI App
 
-The Seed UI App allows you to monitor the state of the cluster via a web UI. To start the seed app run the following from `examples/csharp/Seed`
+The Seed UI App allows you to monitor the state of the cluster via a web UI. 
+![GitHub Logo](img/example.png)
+
+To start the seed app run the following from `examples/csharp/Seed`
 
     dotnet run --port <listen-port>
 
