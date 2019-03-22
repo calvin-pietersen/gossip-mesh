@@ -52,9 +52,6 @@ public class GreeterClient {
 
         Gossip gossip = new Gossip(0, 0);
         gossip.addListener("load-balancer", loadBalancer);
-        gossip.addListener("printing", (nodeAddress, nodeAddress1, nodeState, nodeState1) -> {
-            System.out.printf("%s %s %s %s\n", nodeAddress, nodeAddress1, nodeState, nodeState1);
-        });
         int gossipPort = gossip.start();
         System.out.println(gossipPort);
         for (int i = 0; i < args.length; ++i) {
