@@ -28,32 +28,42 @@ public class Gossip {
     private Thread listener;
     private byte generation;
 
-    public Gossip(byte serviceByte, short servicePort) throws IOException {
+    public Gossip(int serviceByte, int servicePort) throws IOException {
         this(new DatagramSocket(), serviceByte, servicePort);
     }
 
-    public Gossip(short port, byte serviceByte, short servicePort) throws IOException {
+    public Gossip(int port, int serviceByte, int servicePort) throws IOException {
         this(new DatagramSocket(port), serviceByte, servicePort);
     }
 
-    public Gossip(DatagramSocket socket, byte serviceByte, short servicePort) {
+    public Gossip(DatagramSocket socket, int serviceByte, int servicePort) {
         this.states = new HashMap<>();
         this.waiting = new HashMap<>();
-        this.serviceByte = serviceByte;
-        this.servicePort = servicePort;
+        this.serviceByte = (byte) serviceByte;
+        this.servicePort = (short) servicePort;
         this.executor = new ScheduledThreadPoolExecutor(1);
         this.socket = socket;
         this.listeners = new HashMap<>();
     }
 
-    public void start() throws IOException {
-        this.executor.scheduleAtFixedRate(() -> {
+    private Runnable loggingExceptions(Runnable f) {
+        return () -> {
+            try {
+                f.run();
+            } catch (Exception ex) {
+                LOGGER.log(Level.SEVERE, "Exception thrown in task", ex);
+            }
+        };
+    }
+
+    public int start() throws IOException {
+        this.executor.scheduleAtFixedRate(loggingExceptions(() -> {
             try {
                 probe();
             } catch (IOException ex) {
                 LOGGER.log(Level.SEVERE, "Exception thrown when trying to probe", ex);
             }
-        }, 0, PROTOCOL_PERIOD_MS, TimeUnit.MILLISECONDS);
+        }), 0, PROTOCOL_PERIOD_MS, TimeUnit.MILLISECONDS);
         socket.setSoTimeout(500);
         this.listener = new Thread(() -> {
             byte[] buffer = new byte[508];
@@ -66,14 +76,14 @@ public class Gossip {
                             (Inet4Address) packet.getAddress(),
                             (short) packet.getPort());
                     byte[] recvBuffer = Arrays.copyOf(packet.getData(), packet.getLength());
-                    this.executor.execute(() -> {
+                    this.executor.execute(loggingExceptions(() -> {
                         try (InputStream is = new ByteArrayInputStream(recvBuffer);
                              DataInputStream dis = new DataInputStream(is)) {
                             handleMessage(address, dis);
                         } catch (IOException ex) {
                             LOGGER.log(Level.SEVERE, "IO Exception while handling a message from " + address, ex);
                         }
-                    });
+                    }));
 
                 } catch (SocketTimeoutException ex) {
                     // do nothing
@@ -86,6 +96,7 @@ public class Gossip {
         });
         this.listener.setDaemon(true);
         this.listener.start();
+        return socket.getLocalPort();
     }
 
     private Iterable<NodeAddress> randomNodes() {
@@ -170,10 +181,10 @@ public class Gossip {
         this.waiting.computeIfAbsent(address, a -> {
             NodeState state = states.get(address);
             ScheduledFuture<?>[] future = new ScheduledFuture<?>[1];
-            future[0] = this.executor.schedule(() -> {
+            future[0] = this.executor.schedule(loggingExceptions(() -> {
                 this.waiting.remove(address, future[0]);
                 command.run();
-            }, delay, TimeUnit.MILLISECONDS);
+            }), delay, TimeUnit.MILLISECONDS);
             return future[0];
         });
     }
@@ -226,14 +237,14 @@ public class Gossip {
         }
     }
 
-    public void connectTo(Inet4Address address, short port) {
-        this.executor.execute(() -> {
+    public void connectTo(Inet4Address address, int port) {
+        this.executor.execute(loggingExceptions(() -> {
             try {
-                this.ping(new NodeAddress(address, port));
+                this.ping(new NodeAddress(address, (short) port));
             } catch (IOException ex) {
                 LOGGER.log(Level.SEVERE, "Exception thrown while connecting to " + address, ex);
             }
-        });
+        }));
     }
 
     private void ping(NodeAddress address) throws IOException {
@@ -413,10 +424,10 @@ public class Gossip {
     }
 
     public void addListener(Object key, Listener listener) {
-        this.executor.submit(() -> this.listeners.put(key, listener));
+        this.executor.execute(loggingExceptions(() -> this.listeners.put(key, listener)));
     }
 
     public void removeListener(Object key) {
-        this.executor.submit(() -> this.listeners.remove(key));
+        this.executor.execute(loggingExceptions(() -> this.listeners.remove(key)));
     }
 }

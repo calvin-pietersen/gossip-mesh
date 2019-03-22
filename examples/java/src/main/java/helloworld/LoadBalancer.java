@@ -23,10 +23,10 @@ class LoadBalancer implements Listener {
         this.random = new Random();
     }
 
-    public <T> Service<T> registerService(byte serviceByte, ServiceFactory<T> factory) {
-        assert !serviceFactories.containsKey(serviceByte);
-        serviceFactories.put(serviceByte, factory);
-        return new Service<>(serviceByte);
+    public <T> Service<T> registerService(int serviceByte, ServiceFactory<T> factory) {
+        assert !serviceFactories.containsKey((byte) serviceByte);
+        serviceFactories.put((byte) serviceByte, factory);
+        return new Service<>((byte) serviceByte);
     }
 
     public class Service<T> {
