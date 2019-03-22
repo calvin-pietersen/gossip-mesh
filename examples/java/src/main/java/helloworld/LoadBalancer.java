@@ -13,7 +13,6 @@ import static com.rokt.gossip.NodeHealth.*;
 
 @SuppressWarnings("unchecked")
 class LoadBalancer implements Listener {
-    // TODO: thread safety on everything!
     private final Map<Byte, Object> serviceFactories;
     private final Map<Byte, Map<NodeAddress, Object>> services;
     private final Random random;
@@ -75,7 +74,7 @@ class LoadBalancer implements Listener {
         if ((isDead(oldState) && isAlive(state)) || serviceUpdated) {
             ServiceFactory<Object> factory = (ServiceFactory<Object>) serviceFactories.get(state.serviceByte);
             services.computeIfAbsent(state.serviceByte, ConcurrentHashMap::new)
-                    .put(address, factory.create(address.address, address.port));
+                    .put(address, factory.create(address.address, state.servicePort));
         }
     }
 }
