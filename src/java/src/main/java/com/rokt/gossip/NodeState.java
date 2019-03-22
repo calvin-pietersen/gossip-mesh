@@ -28,11 +28,7 @@ public class NodeState {
     }
 
     NodeState withHealth(NodeHealth health) {
-        if (this.health != NodeHealth.LEFT) {
-            return new NodeState(health, this.generation, this.serviceByte, this.servicePort);
-        } else {
-            return this;
-        }
+        return new NodeState(health, this.generation, this.serviceByte, this.servicePort);
     }
 
     // is `gen1` later than `gen2`?

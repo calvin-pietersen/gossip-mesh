@@ -11,10 +11,14 @@ public class Example {
 
     public static void main(String[] args) throws Exception {
         LoadBalancer loadBalancer = new LoadBalancer();
-        LoadBalancer.Service<GreeterGrpc.GreeterBlockingStub> greeterService = loadBalancer.registerService((byte) 0x02, ServiceFactory.grpcFactory(GreeterGrpc::newBlockingStub));
+        LoadBalancer.Service<GreeterGrpc.GreeterBlockingStub> greeterService =
+                loadBalancer.registerService((byte) 0x02, ServiceFactory.grpcFactory(GreeterGrpc::newBlockingStub));
 
         Gossip gossip = new Gossip((byte) 100, (short) 0);
         gossip.addListener("load-balancer", loadBalancer);
+        gossip.addListener("printing updates", (from, address, newState, oldState) -> {
+            System.out.printf("%s %s %s %s\n", from, address, newState, oldState);
+        });
         gossip.start();
         gossip.connectTo((Inet4Address) Inet4Address.getByName("127.0.0.1"), (short) 10000);
 

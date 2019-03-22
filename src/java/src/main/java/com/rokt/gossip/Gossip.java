@@ -8,11 +8,9 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 public class Gossip {
     private static final Logger LOGGER = Logger.getLogger(Gossip.class.getCanonicalName());
@@ -95,12 +93,36 @@ public class Gossip {
     }
 
     private Iterable<NodeAddress> randomNodes(BiPredicate<NodeAddress, NodeState> matching) {
-        // TODO: randomize, and also try to not copy everything
-        return this.states.entrySet()
+        return () -> this.states.entrySet()
                 .stream()
                 .filter(x -> matching.test(x.getKey(), x.getValue()))
                 .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
+                .sorted(new RandomComparator<>())
+                .iterator();
+    }
+
+    private class RandomComparator<T> implements Comparator<T> {
+        private final Map<T, Integer> map = new IdentityHashMap<>();
+        private final Random random;
+
+        RandomComparator() {
+            this(new Random());
+        }
+
+        RandomComparator(Random random) {
+            this.random = random;
+        }
+
+        @Override
+        public int compare(T left, T right) {
+            return Integer.compare(valueOf(left), valueOf(right));
+        }
+
+        int valueOf(T obj) {
+            synchronized (map) {
+                return map.computeIfAbsent(obj, k -> random.nextInt());
+            }
+        }
     }
 
     public void stop(long timeunit, TimeUnit unit) throws InterruptedException {
@@ -146,6 +168,7 @@ public class Gossip {
 
     private void scheduleTask(NodeAddress address, Runnable command, int delay, TimeUnit units) {
         this.waiting.computeIfAbsent(address, a -> {
+            NodeState state = states.get(address);
             ScheduledFuture<?>[] future = new ScheduledFuture<?>[1];
             future[0] = this.executor.schedule(() -> {
                 this.waiting.remove(address, future[0]);
@@ -214,12 +237,12 @@ public class Gossip {
     }
 
     private void ping(NodeAddress address) throws IOException {
-        NodeState state = updateState(null, address, s -> s == null ? new NodeState(NodeHealth.DEAD, (byte) 0, (byte) 0, (byte) 0) : s);
         sendMessage(address, dos -> dos.write(0x01));
+        NodeState state = updateState(null, address, s -> s == null ? new NodeState(NodeHealth.DEAD, (byte) 0, (byte) 0, (byte) 0) : s);
         if (state != null) {
             scheduleTask(address, () -> {
                 try {
-                    indirectPing(address);
+                    indirectPing(address, state);
                 } catch (IOException ex) {
                     LOGGER.log(Level.SEVERE, "Exception thrown while performing indirect ping of " + address, ex);
                 }
@@ -227,8 +250,8 @@ public class Gossip {
         }
     }
 
-    private void indirectPing(NodeAddress address) throws IOException {
-        updateState(null, address, s -> s == null ? null : s.withHealth(NodeHealth.SUSPICIOUS));
+    private void indirectPing(NodeAddress address, NodeState state) throws IOException {
+        updateState(null, address, s -> s == null ? null : s.merge(state.withHealth(NodeHealth.SUSPICIOUS)));
         int i = 3;
         for (NodeAddress relay : randomNodes((a, s) -> !Objects.equals(a, address))) {
             if (--i < 0) {
@@ -240,7 +263,7 @@ public class Gossip {
             });
         }
         scheduleTask(address, () -> {
-            updateState(null, address, s -> s == null ? null : s.withHealth(NodeHealth.DEAD));
+            updateState(null, address, s -> s == null ? null : s.merge(state.withHealth(NodeHealth.DEAD)));
             scheduleTask(address, () -> {
                 updateState(null, address, s -> null);
             }, DEATH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
@@ -322,18 +345,13 @@ public class Gossip {
     private NodeState updateState(NodeAddress from, NodeAddress address, Function<NodeState, NodeState> update) {
         NodeState oldState = this.states.get(address);
         NodeState newState = update.apply(oldState);
-        if (oldState != newState) {
+        if (!Objects.equals(oldState, newState)) {
             if (newState == null) {
                 this.states.remove(address);
             } else {
                 this.states.put(address, newState);
             }
-            if (newState == null
-                    || oldState.health != newState.health
-                    || oldState.serviceByte != newState.serviceByte
-                    || oldState.servicePort != newState.servicePort) {
-                notifyListeners(from, address, newState, oldState);
-            }
+            notifyListeners(from, address, newState, oldState);
         }
         return newState;
     }
@@ -347,7 +365,7 @@ public class Gossip {
                     senderGeneration,
                     senderService,
                     senderServicePort);
-            updateState(null, from, s -> s.merge(senderState));
+            updateState(null, from, s -> s == null ? senderState : s.merge(senderState));
 
             NodeHealth myHealth = NodeHealth.values()[input.readByte()];
             byte myGeneration = input.readByte();
@@ -368,8 +386,20 @@ public class Gossip {
                 byte generation = input.readByte();
                 byte serviceByte = (health == NodeHealth.ALIVE ? input.readByte() : 0);
                 short servicePort = (health == NodeHealth.ALIVE ? input.readShort() : 0);
+                NodeState newState = new NodeState(health, generation, serviceByte, servicePort);
 
-                updateState(from, address, s -> s.merge(new NodeState(health, generation, serviceByte, servicePort)));
+                updateState(from, address, s -> {
+                    if (s != null) {
+                        return s.merge(newState);
+                    } else if (health == NodeHealth.ALIVE || health == NodeHealth.SUSPICIOUS) {
+                        return newState;
+                    } else {
+                        // if we don't already know about this node and we get a DEAD or a LEFT: we don't care.
+                        // Just ignore it. This means that our pruning will actually remove nodes, because we
+                        // won't keep broadcasting dead nodes indefinitely.
+                        return null;
+                    }
+                });
             }
         } catch (IOException ex) {
             // this is fine - just means we're done with handling events

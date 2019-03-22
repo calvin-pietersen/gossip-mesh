@@ -2,12 +2,12 @@ package helloworld;
 
 import com.rokt.gossip.Listener;
 import com.rokt.gossip.NodeAddress;
-import com.rokt.gossip.NodeHealth;
 import com.rokt.gossip.NodeState;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.rokt.gossip.NodeHealth.*;
 
@@ -25,13 +25,8 @@ class LoadBalancer implements Listener {
     }
 
     public <T> Service<T> registerService(byte serviceByte, ServiceFactory<T> factory) {
-        ServiceFactory<Object> oldFactory = (ServiceFactory<Object>) serviceFactories.put(serviceByte, factory);
-        if (oldFactory != null) {
-            services.get(serviceByte).replaceAll((address, service) -> {
-                oldFactory.destroy(service);
-                return factory.create(address.address, address.port);
-            });
-        }
+        assert !serviceFactories.containsKey(serviceByte);
+        serviceFactories.put(serviceByte, factory);
         return new Service<>(serviceByte);
     }
 
@@ -54,9 +49,20 @@ class LoadBalancer implements Listener {
         }
     }
 
+    private static boolean isAlive(NodeState state) {
+        return state != null && (state.health == ALIVE || state.health == SUSPICIOUS);
+    }
+
+    private static boolean isDead(NodeState state) {
+        return state == null || state.health == DEAD || state.health == LEFT;
+    }
+
     @Override
     public void accept(NodeAddress from, NodeAddress address, NodeState state, NodeState oldState) {
-        if (state == null || state.serviceByte != oldState.serviceByte || state.health == NodeHealth.DEAD || state.health == LEFT) {
+        boolean serviceUpdated = (state != null && oldState != null)
+                && (state.serviceByte != oldState.serviceByte)
+                && (state.servicePort != oldState.servicePort);
+        if (isAlive(oldState) && (isDead(state) || serviceUpdated)) {
             services.computeIfPresent(oldState.serviceByte, (b, nodes) -> {
                 Object service = nodes.remove(address);
                 if (service != null) {
@@ -66,9 +72,9 @@ class LoadBalancer implements Listener {
                 return nodes.isEmpty() ? null : nodes;
             });
         }
-        if (state != null && (state.health == ALIVE || state.health == SUSPICIOUS)) {
+        if ((isDead(oldState) && isAlive(state)) || serviceUpdated) {
             ServiceFactory<Object> factory = (ServiceFactory<Object>) serviceFactories.get(state.serviceByte);
-            services.computeIfAbsent(state.serviceByte, HashMap::new)
+            services.computeIfAbsent(state.serviceByte, ConcurrentHashMap::new)
                     .put(address, factory.create(address.address, address.port));
         }
     }
