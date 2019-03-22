@@ -16,9 +16,6 @@ public class Example {
 
         Gossip gossip = new Gossip((byte) 100, (short) 0);
         gossip.addListener("load-balancer", loadBalancer);
-        gossip.addListener("printing updates", (from, address, newState, oldState) -> {
-            System.out.printf("%s %s %s %s\n", from, address, newState, oldState);
-        });
         gossip.start();
         gossip.connectTo((Inet4Address) Inet4Address.getByName("127.0.0.1"), (short) 10000);
 
