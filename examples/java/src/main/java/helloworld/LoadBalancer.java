@@ -73,8 +73,10 @@ class LoadBalancer implements Listener {
         }
         if ((isDead(oldState) && isAlive(state)) || serviceUpdated) {
             ServiceFactory<Object> factory = (ServiceFactory<Object>) serviceFactories.get(state.serviceByte);
-            services.computeIfAbsent(state.serviceByte, ConcurrentHashMap::new)
-                    .put(address, factory.create(address.address, state.servicePort));
+            if (factory != null) { // we can't build a client if we don't have the service byte registered!
+                services.computeIfAbsent(state.serviceByte, ConcurrentHashMap::new)
+                        .put(address, factory.create(address.address, state.servicePort));
+            }
         }
     }
 }
