@@ -1,0 +1,75 @@
+package helloworld;
+
+import com.rokt.gossip.Listener;
+import com.rokt.gossip.NodeAddress;
+import com.rokt.gossip.NodeHealth;
+import com.rokt.gossip.NodeState;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
+
+import static com.rokt.gossip.NodeHealth.*;
+
+@SuppressWarnings("unchecked")
+class LoadBalancer implements Listener {
+    // TODO: thread safety on everything!
+    private final Map<Byte, Object> serviceFactories;
+    private final Map<Byte, Map<NodeAddress, Object>> services;
+    private final Random random;
+
+    public LoadBalancer() {
+        this.serviceFactories = new HashMap<>();
+        this.services = new HashMap<>();
+        this.random = new Random();
+    }
+
+    public <T> Service<T> registerService(byte serviceByte, ServiceFactory<T> factory) {
+        ServiceFactory<Object> oldFactory = (ServiceFactory<Object>) serviceFactories.put(serviceByte, factory);
+        if (oldFactory != null) {
+            services.get(serviceByte).replaceAll((address, service) -> {
+                oldFactory.destroy(service);
+                return factory.create(address.address, address.port);
+            });
+        }
+        return new Service<>(serviceByte);
+    }
+
+    public class Service<T> {
+        private byte serviceByte;
+
+        private Service(byte serviceByte) {
+            this.serviceByte = serviceByte;
+        }
+
+        public T getEndpoint() {
+            Map<NodeAddress, ?> nodes = LoadBalancer.this.services.get(serviceByte);
+            if (nodes == null || nodes.isEmpty()) {
+                throw new RuntimeException("No services available to handle request");
+            } else {
+                Object[] arr = nodes.values().toArray(new Object[0]);
+                int index = LoadBalancer.this.random.nextInt(arr.length);
+                return (T) arr[index];
+            }
+        }
+    }
+
+    @Override
+    public void accept(NodeAddress from, NodeAddress address, NodeState state, NodeState oldState) {
+        if (state == null || state.serviceByte != oldState.serviceByte || state.health == NodeHealth.DEAD || state.health == LEFT) {
+            services.computeIfPresent(oldState.serviceByte, (b, nodes) -> {
+                Object service = nodes.remove(address);
+                if (service != null) {
+                    ServiceFactory<Object> factory = (ServiceFactory<Object>) serviceFactories.get(oldState.serviceByte);
+                    factory.destroy(service);
+                }
+                return nodes.isEmpty() ? null : nodes;
+            });
+        }
+        if (state != null && (state.health == ALIVE || state.health == SUSPICIOUS)) {
+            ServiceFactory<Object> factory = (ServiceFactory<Object>) serviceFactories.get(state.serviceByte);
+            services.computeIfAbsent(state.serviceByte, HashMap::new)
+                    .put(address, factory.create(address.address, address.port));
+        }
+    }
+}
