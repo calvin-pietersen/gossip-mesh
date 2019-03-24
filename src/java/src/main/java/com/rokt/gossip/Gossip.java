@@ -274,9 +274,10 @@ public class Gossip {
             });
         }
         scheduleTask(address, () -> {
-            updateState(null, address, s -> s == null ? null : s.merge(state.withHealth(NodeHealth.DEAD)));
+            NodeState dead = updateState(null, address, s -> s == null ? null : s.merge(state.withHealth(NodeHealth.DEAD)));
             scheduleTask(address, () -> {
-                updateState(null, address, s -> null);
+                // only prune the state if it hasn't changed
+                updateState(null, address, s -> Objects.equals(s, dead) ? null : s);
             }, DEATH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         }, INDIRECT_PING_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
