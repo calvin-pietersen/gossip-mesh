@@ -13,15 +13,16 @@ public class GreeterClient {
     private final ManagedChannel channel;
     private final GreeterGrpc.GreeterBlockingStub stub;
 
-    public GreeterClient(ManagedChannel channel, GreeterGrpc.GreeterBlockingStub stub) {
+    public GreeterClient(ManagedChannel channel) {
         this.channel = channel;
-        this.stub = stub;
+        this.stub = GreeterGrpc.newBlockingStub(channel);
     }
 
-    public Helloworld.HelloReply sayHello(String name) {
-        return stub.sayHello(Helloworld.HelloRequest.newBuilder()
+    public String sayHello(String name) {
+        Helloworld.HelloReply response = stub.sayHello(Helloworld.HelloRequest.newBuilder()
                 .setName(name)
                 .build());
+        return response.getMessage();
     }
 
     public String authority() {
@@ -36,7 +37,7 @@ public class GreeterClient {
                     .usePlaintext()
                     .keepAliveWithoutCalls(true)
                     .build();
-            return new GreeterClient(channel, GreeterGrpc.newBlockingStub(channel));
+            return new GreeterClient(channel);
         }
 
         @Override
@@ -73,10 +74,10 @@ public class GreeterClient {
 
                 GreeterClient greeter = greeterService.getEndpoint();
                 long start = System.nanoTime();
-                Helloworld.HelloReply response = greeter.sayHello(name);
+                String response = greeter.sayHello(name);
                 long end = System.nanoTime();
                 double time = ((double) (end - start)) / 1000000;
-                System.out.println(greeter.authority() + " " + response.getMessage() + " took " + time + "ms");
+                System.out.println(greeter.authority() + " " + response + " took " + time + "ms");
             }
         }
     }
