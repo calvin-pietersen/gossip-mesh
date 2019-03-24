@@ -249,7 +249,7 @@ send_message(Address, Header, State=#state{
                    MyGeneration, MyService, MyServicePort:16,
                    ReceiverHealthByte, ReceiverGeneration>>,
     {Ip, Port} = Address,
-    {Message, UpdatedAddresses} = unparse_events(sort_events(Nodes), FullHeader),
+    {Message, UpdatedAddresses} = unparse_events(sort_events(maps:without([Address], Nodes)), FullHeader),
     case send(Socket, Ip, Port, Message) of
         ok -> State#state{nodes=increment_times_sent(Nodes, UpdatedAddresses)};
         _ -> State
