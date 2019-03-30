@@ -179,7 +179,6 @@ public class Gossip {
 
     private void scheduleTask(NodeAddress address, Runnable command, int delay, TimeUnit units) {
         this.waiting.computeIfAbsent(address, a -> {
-            NodeState state = states.get(address);
             ScheduledFuture<?>[] future = new ScheduledFuture<?>[1];
             future[0] = this.executor.schedule(loggingExceptions(() -> {
                 this.waiting.remove(address, future[0]);
