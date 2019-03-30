@@ -5,29 +5,29 @@ using System.Threading;
 
 namespace GossipMesh.Core
 {
-    public class Member
+    public class Node
     {
         private long _gossipCounter = 0;
 
-        public MemberState State { get; private set; }
         public IPAddress IP { get; private set; }
         public ushort GossipPort { get; private set; }
+        public NodeState State { get; private set; }
         public byte Generation { get; internal set; }
         public byte Service { get; private set; }
         public ushort ServicePort { get; private set; }
         internal long GossipCounter { get { return Interlocked.Read(ref _gossipCounter); } }
 
-        internal Member(MemberEvent memberEvent)
+        internal Node(NodeEvent nodeEvent)
         {
-            IP = memberEvent.IP;
-            GossipPort = memberEvent.GossipPort;
-            State = memberEvent.State;
-            Generation = memberEvent.Generation;
-            Service = memberEvent.Service;
-            ServicePort = memberEvent.ServicePort;
+            IP = nodeEvent.IP;
+            GossipPort = nodeEvent.GossipPort;
+            State = nodeEvent.State;
+            Generation = nodeEvent.Generation;
+            Service = nodeEvent.Service;
+            ServicePort = nodeEvent.ServicePort;
         }
 
-        public Member(MemberState state, IPAddress ip, ushort gossipPort, byte generation, byte service, ushort servicePort)
+        public Node(NodeState state, IPAddress ip, ushort gossipPort, byte generation, byte service, ushort servicePort)
         {
             State = state;
             IP = ip;
@@ -45,21 +45,21 @@ namespace GossipMesh.Core
             }
         }
 
-        internal void Update(MemberEvent memberEvent)
+        internal void Update(NodeEvent nodeEvent)
         {
-            State = memberEvent.State;
-            Generation = memberEvent.Generation;
+            State = nodeEvent.State;
+            Generation = nodeEvent.Generation;
 
-            if (memberEvent.State == MemberState.Alive)
+            if (nodeEvent.State == NodeState.Alive)
             {
-                Service = memberEvent.Service;
-                ServicePort = memberEvent.ServicePort;
+                Service = nodeEvent.Service;
+                ServicePort = nodeEvent.ServicePort;
             }
 
             Interlocked.Exchange(ref _gossipCounter, 0);
         }
 
-        internal void Update(MemberState state)
+        internal void Update(NodeState state)
         {
             State = state;
             Interlocked.Exchange(ref _gossipCounter, 0);
@@ -71,19 +71,13 @@ namespace GossipMesh.Core
                  || ((newGeneration - Generation) <= -191);
         }
 
-        internal bool IsStateSuperseded(MemberState newState)
-        {
-            // alive < suspicious < dead < left
-            return State < newState;
-        }
-
         internal void WriteTo(Stream stream)
         {
             stream.WriteIPEndPoint(GossipEndPoint);
             stream.WriteByte((byte)State);
             stream.WriteByte(Generation);
 
-            if (State == MemberState.Alive)
+            if (State == NodeState.Alive)
             {
                 stream.WriteByte(Service);
                 stream.WritePort(ServicePort);

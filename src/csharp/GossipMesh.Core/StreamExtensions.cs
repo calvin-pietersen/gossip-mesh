@@ -11,9 +11,9 @@ namespace GossipMesh.Core
             return (MessageType)stream.ReadByte();
         }
 
-        public static MemberState ReadMemberState(this Stream stream)
+        public static NodeState ReadNodeState(this Stream stream)
         {
-            return (MemberState)stream.ReadByte();
+            return (NodeState)stream.ReadByte();
         }
 
         public static IPAddress ReadIPAddress(this Stream stream)

@@ -18,20 +18,20 @@ initialize_topo();
 
 var nodes = {};
 
-var connection = new signalR.HubConnectionBuilder().withUrl("/membersHub").build();
+var connection = new signalR.HubConnectionBuilder().withUrl("/nodesHub").build();
 
-connection.on("InitializationMessage", function (graph, memberEvents) {
+connection.on("InitializationMessage", function (graph, nodeEvents) {
 
     for (var i = 0, len = graph.nodes.length; i < len; i++) {
         nodes[graph.nodes[i].id] = graph.nodes[i];
     }
 
     load(graph.nodes);
-    addMemberEventsToTable(memberEvents);
+    addNodeEventsToTable(nodeEvents);
 });
 
-connection.on("MemberUpdatedMessage", function (memberEvent, node) {
-    dataTable.row.add(memberEventToRecord(memberEvent)).draw();
+connection.on("NodeUpdatedMessage", function (nodeEvent, node) {
+    dataTable.row.add(nodeEventToRecord(nodeEvent)).draw();
 
     if (node.state === "Pruned") {
         delete nodes[node.id];
@@ -46,24 +46,24 @@ connection.start().catch(function (err) {
     return console.error(err.toString());
 });
 
-function addMemberEventsToTable(memberEvents) {
+function addNodeEventsToTable(nodeEvents) {
     var dataSet = [];
-    for (var i = 0, len = memberEvents.length; i < len; i++) {
-       dataSet.push(memberEventToRecord(memberEvents[i]));
+    for (var i = 0, len = nodeEvents.length; i < len; i++) {
+       dataSet.push(nodeEventToRecord(nodeEvents[i]));
     }
 
     dataTable.rows.add(dataSet).draw();
 }
 
-function memberEventToRecord(memberEvent) {
+function nodeEventToRecord(nodeEvent) {
     return [
-            memberEvent.receivedDateTime,
-            memberEvent.senderGossipEndPoint,
-            memberEvent.ip,
-            memberEvent.state,
-            memberEvent.gossipPort,
-            memberEvent.generation,
-            memberEvent.service,
-            memberEvent.servicePort
+            nodeEvent.receivedDateTime,
+            nodeEvent.senderGossipEndPoint,
+            nodeEvent.ip,
+            nodeEvent.state,
+            nodeEvent.gossipPort,
+            nodeEvent.generation,
+            nodeEvent.service,
+            nodeEvent.servicePort
     ]
 }

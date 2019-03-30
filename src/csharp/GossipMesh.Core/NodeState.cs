@@ -1,6 +1,6 @@
 namespace GossipMesh.Core
 {
-    public enum MemberState : byte
+    public enum NodeState : byte
     {
         Alive = 0x00,
         Suspicious = 0x01,

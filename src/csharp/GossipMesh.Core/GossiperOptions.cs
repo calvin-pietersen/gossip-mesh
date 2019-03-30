@@ -34,7 +34,7 @@ namespace GossipMesh.Core
         public int PruneTimeoutMilliseconds { get; set; } = 600000;
         public int FanoutFactor { get; set; } = 3;
         public int NumberOfIndirectEndpoints { get; set; } = 3;
-        public IPEndPoint[] SeedMembers { get; set; } = new IPEndPoint[0];
-        public IEnumerable<IMemberListener> MemberListeners { get; set; } = Enumerable.Empty<IMemberListener>();
+        public IPEndPoint[] SeedNodes { get; set; } = new IPEndPoint[0];
+        public IEnumerable<IListener> Listeners { get; set; } = Enumerable.Empty<IListener>();
     }
 }

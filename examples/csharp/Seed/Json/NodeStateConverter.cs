@@ -5,11 +5,11 @@ using Newtonsoft.Json;
 
 namespace GossipMesh.Seed.Json
 {
-    public class MemberStateConverter : JsonConverter
+    public class NodeStateConverter : JsonConverter
     {
         public override bool CanConvert(Type objectType)
         {
-            return (objectType == typeof(MemberState));
+            return (objectType == typeof(NodeState));
         }
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
@@ -19,7 +19,7 @@ namespace GossipMesh.Seed.Json
 
         public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
         {
-            return (MemberState)reader.Value;
+            return (NodeState)reader.Value;
         }
     }
 }

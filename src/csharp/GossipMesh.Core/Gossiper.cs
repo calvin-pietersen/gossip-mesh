@@ -13,8 +13,8 @@ namespace GossipMesh.Core
     {
         private const byte PROTOCOL_VERSION = 0x00;
         private readonly object _locker = new Object();
-        private readonly Member _self;
-        private readonly Dictionary<IPEndPoint, Member> _members = new Dictionary<IPEndPoint, Member>();
+        private readonly Node _self;
+        private readonly Dictionary<IPEndPoint, Node> _nodes = new Dictionary<IPEndPoint, Node>();
         private volatile Dictionary<IPEndPoint, DateTime> _awaitingAcks = new Dictionary<IPEndPoint, DateTime>();
         private DateTime _lastProtocolPeriod = DateTime.UtcNow;
         private readonly Random _rand = new Random();
@@ -28,14 +28,14 @@ namespace GossipMesh.Core
             _options = options;
             _logger = logger;
 
-            _self = new Member(MemberState.Alive, IPAddress.Any, listenPort, 1, service, servicePort);
+            _self = new Node(NodeState.Alive, IPAddress.Any, listenPort, 0, service, servicePort);
         }
 
         public async Task StartAsync()
         {
             _logger.LogInformation("Gossip.Mesh starting Gossiper on {GossipEndPoint}", _self.GossipEndPoint);
             _udpClient = CreateUdpClient(_self.GossipEndPoint);
-            PushToMemberListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
+            PushToNodeListeners(new NodeEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
 
             // start listener
             Listener();
@@ -46,8 +46,8 @@ namespace GossipMesh.Core
             // gossip
             GossipPump();
 
-            // detect dead members and prune old members
-            DeadMemberHandler();
+            // detect dead nodes and prune old nodes
+            DeadNodeHandler();
 
             // low frequency ping to seeds to avoid network partitioning
             NetworkPartitionGaurd();
@@ -57,8 +57,8 @@ namespace GossipMesh.Core
         {
             try
             {
-                var i = _rand.Next(0, _options.SeedMembers.Length);
-                await PingAsync(_options.SeedMembers[i]).ConfigureAwait(false);
+                var i = _rand.Next(0, _options.SeedNodes.Length);
+                await PingAsync(_options.SeedNodes[i]).ConfigureAwait(false);
             }
 
             catch (Exception ex)
@@ -70,7 +70,7 @@ namespace GossipMesh.Core
 
         private async Task Bootstraper()
         {
-            if (_options.SeedMembers == null || _options.SeedMembers.Length == 0)
+            if (_options.SeedNodes == null || _options.SeedNodes.Length == 0)
             {
                 _logger.LogInformation("Gossip.Mesh no seeds to bootstrap off");
                 return;
@@ -78,7 +78,7 @@ namespace GossipMesh.Core
 
             _logger.LogInformation("Gossip.Mesh bootstrapping off seeds");
 
-            while (IsMembersEmpty())
+            while (IsNodesEmpty())
             {
                 await PingRandomSeed().ConfigureAwait(false);
                 await Task.Delay(_options.ProtocolPeriodMilliseconds).ConfigureAwait(false);
@@ -89,7 +89,7 @@ namespace GossipMesh.Core
 
         private async void NetworkPartitionGaurd()
         {
-            if (_options.SeedMembers == null || _options.SeedMembers.Length == 0)
+            if (_options.SeedNodes == null || _options.SeedNodes.Length == 0)
             {
                 return;
             }
@@ -99,10 +99,10 @@ namespace GossipMesh.Core
                 var n = 0;
                 lock (_locker)
                 {
-                    n = _members.Count() * 1000;
+                    n = _nodes.Count() * 1000;
                 }
 
-                // wait the max of either 1m or 1s for each member
+                // wait the max of either 1m or 1s for each node
                 await Task.Delay(Math.Max(60000, n)).ConfigureAwait(false);
                 await PingRandomSeed().ConfigureAwait(false);
             }
@@ -146,7 +146,7 @@ namespace GossipMesh.Core
                                 destinationGossipEndPoint = _self.GossipEndPoint;
                             }
 
-                            UpdateMembers(request.RemoteEndPoint, receivedDateTime, stream);
+                            UpdateNodes(request.RemoteEndPoint, receivedDateTime, stream);
                             await RequestHandler(request, messageType, sourceGossipEndPoint, destinationGossipEndPoint).ConfigureAwait(false);
                         }
 
@@ -213,7 +213,7 @@ namespace GossipMesh.Core
 
                 if (WasNotAcked(gossipEndPoint))
                 {
-                    UpdateMemberState(gossipEndPoint, MemberState.Suspicious);
+                    UpdateNodeState(gossipEndPoint, NodeState.Suspicious);
                 }
             }
 
@@ -223,7 +223,7 @@ namespace GossipMesh.Core
             }
         }
 
-        private async void DeadMemberHandler()
+        private async void DeadNodeHandler()
         {
             while (true)
             {
@@ -235,13 +235,13 @@ namespace GossipMesh.Core
                         {
                             if (DateTime.UtcNow > awaitingAck.Value.AddMilliseconds(_options.PruneTimeoutMilliseconds))
                             {
-                                if (_members.TryGetValue(awaitingAck.Key, out var member) && (member.State == MemberState.Dead || member.State == MemberState.Left))
+                                if (_nodes.TryGetValue(awaitingAck.Key, out var node) && (node.State == NodeState.Dead || node.State == NodeState.Left))
                                 {
-                                    _members.Remove(awaitingAck.Key);
-                                    _logger.LogInformation("Gossip.Mesh pruned member {member}", member);
+                                    _nodes.Remove(awaitingAck.Key);
+                                    _logger.LogInformation("Gossip.Mesh pruned node {node}", node);
 
-                                    member.Update(MemberState.Pruned);
-                                    PushToMemberListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member));
+                                    node.Update(NodeState.Pruned);
+                                    PushToNodeListeners(new NodeEvent(_self.GossipEndPoint, DateTime.UtcNow, node));
                                 }
 
                                 _awaitingAcks.Remove(awaitingAck.Key);
@@ -249,7 +249,7 @@ namespace GossipMesh.Core
 
                             else if (DateTime.UtcNow > awaitingAck.Value.AddMilliseconds(_options.DeadTimeoutMilliseconds))
                             {
-                                UpdateMemberState(awaitingAck.Key, MemberState.Dead);
+                                UpdateNodeState(awaitingAck.Key, NodeState.Dead);
                             }
                         }
                     }
@@ -305,7 +305,7 @@ namespace GossipMesh.Core
             {
                 stream.WriteByte(PROTOCOL_VERSION);
                 stream.WriteByte((byte)messageType);
-                WriteMembers(stream, destinationGossipEndPoint);
+                WriteNodes(stream, destinationGossipEndPoint);
 
                 await _udpClient.SendAsync(stream.GetBuffer(), (int)stream.Position, destinationGossipEndPoint).ConfigureAwait(false);
             }
@@ -320,7 +320,7 @@ namespace GossipMesh.Core
                 stream.WriteByte(PROTOCOL_VERSION);
                 stream.WriteByte((byte)messageType);
                 stream.WriteIPEndPoint(destinationGossipEndPoint);
-                WriteMembers(stream, indirectGossipEndPoint);
+                WriteNodes(stream, indirectGossipEndPoint);
 
                 await _udpClient.SendAsync(stream.GetBuffer(), (int)stream.Position, indirectGossipEndPoint).ConfigureAwait(false);
             }
@@ -335,7 +335,7 @@ namespace GossipMesh.Core
                 stream.WriteByte(PROTOCOL_VERSION);
                 stream.WriteByte((byte)messageType);
                 stream.WriteIPEndPoint(sourceGossipEndPoint);
-                WriteMembers(stream, destinationGossipEndPoint);
+                WriteNodes(stream, destinationGossipEndPoint);
 
                 await _udpClient.SendAsync(stream.GetBuffer(), (int)stream.Position, destinationGossipEndPoint).ConfigureAwait(false);
             }
@@ -364,67 +364,67 @@ namespace GossipMesh.Core
             await RequestMessageAsync(MessageType.RequestAck, destinationGossipEndPoint, indirectGossipEndPoint).ConfigureAwait(false);
         }
 
-        private void UpdateMembers(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Stream stream)
+        private void UpdateNodes(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Stream stream)
         {
             // read sender
-            var memberEvent = MemberEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream, true);
+            var nodeEvent = NodeEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream, true);
 
             // handle ourself
-            var selfClaimedState = stream.ReadMemberState();
+            var selfClaimedState = stream.ReadNodeState();
             var selfClaimedGeneration = (byte)stream.ReadByte();
 
             if (_self.IsLaterGeneration(selfClaimedGeneration) ||
-                (selfClaimedState != MemberState.Alive && selfClaimedGeneration == _self.Generation))
+                (selfClaimedState != NodeState.Alive && selfClaimedGeneration == _self.Generation))
             {
-                PushToMemberListeners(new MemberEvent(senderGossipEndPoint, receivedDateTime, _self.IP, _self.GossipPort, selfClaimedState, selfClaimedGeneration));
+                PushToNodeListeners(new NodeEvent(senderGossipEndPoint, receivedDateTime, _self.IP, _self.GossipPort, selfClaimedState, selfClaimedGeneration));
 
                 _self.Generation = (byte)(selfClaimedGeneration + 1);
                 _logger.LogInformation("Gossip.Mesh received a claim about self, state:{state} generation:{generation}. Raising generation to {generation}", selfClaimedState, selfClaimedGeneration, _self.Generation);
 
-                PushToMemberListeners(new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
+                PushToNodeListeners(new NodeEvent(_self.GossipEndPoint, DateTime.UtcNow, _self));
             }
 
             // handler sender and everyone else
-            while (memberEvent != null)
+            while (nodeEvent != null)
             {
                 lock (_locker)
                 {
-                    if (_members.TryGetValue(memberEvent.GossipEndPoint, out var member) &&
-                        (member.IsLaterGeneration(memberEvent.Generation) ||
-                        (member.Generation == memberEvent.Generation && member.IsStateSuperseded(memberEvent.State))))
+                    if (_nodes.TryGetValue(nodeEvent.GossipEndPoint, out var node) &&
+                        (node.IsLaterGeneration(nodeEvent.Generation) ||
+                        (node.Generation == nodeEvent.Generation && node.State < nodeEvent.State)))
                     {
                         // stops state escalation
-                        if (memberEvent.State == MemberState.Alive && memberEvent.Generation > member.Generation)
+                        if (nodeEvent.State == NodeState.Alive && nodeEvent.Generation > node.Generation)
                         {
-                            RemoveAwaitingAck(memberEvent.GossipEndPoint);
+                            RemoveAwaitingAck(nodeEvent.GossipEndPoint);
                         }
 
-                        member.Update(memberEvent);
-                        _logger.LogInformation("Gossip.Mesh member state changed {member}", member);
+                        node.Update(nodeEvent);
+                        _logger.LogInformation("Gossip.Mesh node state changed {node}", node);
 
-                        PushToMemberListeners(memberEvent);
+                        PushToNodeListeners(nodeEvent);
                     }
 
-                    else if (member == null)
+                    else if (node == null)
                     {
-                        member = new Member(memberEvent);
-                        _members.Add(member.GossipEndPoint, member);
-                        _logger.LogInformation("Gossip.Mesh member added {member}", member);
+                        node = new Node(nodeEvent);
+                        _nodes.Add(node.GossipEndPoint, node);
+                        _logger.LogInformation("Gossip.Mesh node added {node}", node);
 
-                        PushToMemberListeners(memberEvent);
+                        PushToNodeListeners(nodeEvent);
                     }
 
-                    if (member.State != MemberState.Alive)
+                    if (node.State != NodeState.Alive)
                     {
-                        AddAwaitingAck(member.GossipEndPoint);
+                        AddAwaitingAck(node.GossipEndPoint);
                     }
                 }
 
-                memberEvent = MemberEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream);
+                nodeEvent = NodeEvent.ReadFrom(senderGossipEndPoint, receivedDateTime, stream);
             }
         }
 
-        private void WriteMembers(Stream stream, IPEndPoint destinationGossipEndPoint)
+        private void WriteNodes(Stream stream, IPEndPoint destinationGossipEndPoint)
         {
             lock (_locker)
             {
@@ -432,28 +432,28 @@ namespace GossipMesh.Core
                 stream.WriteByte(_self.Service);
                 stream.WritePort(_self.ServicePort);
 
-                if (_members.TryGetValue(destinationGossipEndPoint, out var destinationMember))
+                if (_nodes.TryGetValue(destinationGossipEndPoint, out var destinationNode))
                 {
-                    stream.WriteByte((byte)destinationMember.State);
-                    stream.WriteByte(destinationMember.Generation);
+                    stream.WriteByte((byte)destinationNode.State);
+                    stream.WriteByte(destinationNode.Generation);
                 }
 
                 else
                 {
-                    stream.WriteByte((byte)MemberState.Alive);
+                    stream.WriteByte((byte)NodeState.Alive);
                     stream.WriteByte(0x01);
                 }
 
-                var members = GetMembers(destinationGossipEndPoint);
+                var nodes = GetNodes(destinationGossipEndPoint);
 
-                if (members != null)
+                if (nodes != null)
                 {
                     var i = 0;
                     {
-                        while (i < members.Length && stream.Position < _options.MaxUdpPacketBytes - 11)
+                        while (i < nodes.Length && stream.Position < _options.MaxUdpPacketBytes - 11)
                         {
-                            var member = members[i];
-                            members[i].WriteTo(stream);
+                            var node = nodes[i];
+                            nodes[i].WriteTo(stream);
                             i++;
                         }
                     }
@@ -479,11 +479,11 @@ namespace GossipMesh.Core
             return udpClient;
         }
 
-        private Member[] GetMembers(IPEndPoint destinationGossipEndPoint)
+        private Node[] GetNodes(IPEndPoint destinationGossipEndPoint)
         {
             lock (_locker)
             {
-                return _members
+                return _nodes
                     .Values
                     .OrderBy(m => m.GossipCounter)
                     .Where(m => !(_awaitingAcks.TryGetValue(m.GossipEndPoint, out var t) && DateTime.UtcNow > t.AddMilliseconds(_options.DeadCoolOffMilliseconds)) &&
@@ -492,43 +492,43 @@ namespace GossipMesh.Core
             }
         }
 
-        private bool IsMembersEmpty()
+        private bool IsNodesEmpty()
         {
             lock (_locker)
             {
-                return _members.Count == 0;
+                return _nodes.Count == 0;
             }
         }
 
         private IEnumerable<IPEndPoint> GetRandomGossipEndPoints(int numberOfEndPoints, IPEndPoint directGossipEndPoint = null)
         {
-            var members = GetMembers(directGossipEndPoint);
-            var randomIndex = _rand.Next(0, members.Length);
+            var nodes = GetNodes(directGossipEndPoint);
+            var randomIndex = _rand.Next(0, nodes.Length);
 
-            if (members.Length == 0)
+            if (nodes.Length == 0)
             {
                 return Enumerable.Empty<IPEndPoint>();
             }
 
             return Enumerable.Range(randomIndex, numberOfEndPoints)
-                .Select(ri => ri % members.Length) // wrap the range around to 0 if we hit the end
-                .Select(i => members[i])
+                .Select(ri => ri % nodes.Length) // wrap the range around to 0 if we hit the end
+                .Select(i => nodes[i])
                 .Select(m => m.GossipEndPoint)
                 .Distinct()
                 .Take(numberOfEndPoints);
         }
 
-        private void UpdateMemberState(IPEndPoint gossipEndPoint, MemberState memberState)
+        private void UpdateNodeState(IPEndPoint gossipEndPoint, NodeState nodeState)
         {
             lock (_locker)
             {
-                if (_members.TryGetValue(gossipEndPoint, out var member) && member.State < memberState)
+                if (_nodes.TryGetValue(gossipEndPoint, out var node) && node.State < nodeState)
                 {
-                    member.Update(memberState);
-                    _logger.LogInformation("Gossip.Mesh {memberState} member {member}", memberState.ToString().ToLower(), member);
+                    node.Update(nodeState);
+                    _logger.LogInformation("Gossip.Mesh {nodeState} node {node}", nodeState.ToString().ToLower(), node);
 
-                    var memberEvent = new MemberEvent(_self.GossipEndPoint, DateTime.UtcNow, member);
-                    PushToMemberListeners(memberEvent);
+                    var nodeEvent = new NodeEvent(_self.GossipEndPoint, DateTime.UtcNow, node);
+                    PushToNodeListeners(nodeEvent);
                 }
             }
         }
@@ -578,11 +578,11 @@ namespace GossipMesh.Core
             _lastProtocolPeriod = DateTime.UtcNow;
         }
 
-        private void PushToMemberListeners(MemberEvent memberEvent)
+        private void PushToNodeListeners(NodeEvent nodeEvent)
         {
-            foreach (var listener in _options.MemberListeners)
+            foreach (var listener in _options.Listeners)
             {
-                listener.MemberUpdatedCallback(memberEvent).ConfigureAwait(false);
+                listener.Accept(nodeEvent).ConfigureAwait(false);
             }
         }
 
