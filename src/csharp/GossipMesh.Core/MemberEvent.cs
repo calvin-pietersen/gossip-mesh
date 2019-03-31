@@ -5,12 +5,12 @@ using System.Threading;
 
 namespace GossipMesh.Core
 {
-    public class NodeEvent
+    public class MemberEvent
     {
         public IPEndPoint SenderGossipEndPoint;
         public DateTime ReceivedDateTime; 
 
-        public NodeState State { get; private set; }
+        public MemberState State { get; private set; }
         public IPAddress IP { get; private set; }
         public ushort GossipPort { get; private set; }
         public byte Generation { get; private set; }
@@ -22,11 +22,11 @@ namespace GossipMesh.Core
             get { return new IPEndPoint(IP, GossipPort); }
         }
 
-        private NodeEvent()
+        private MemberEvent()
         {
         }
 
-        internal NodeEvent(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, IPAddress ip, ushort gossipPort, NodeState state, byte generation)
+        internal MemberEvent(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, IPAddress ip, ushort gossipPort, MemberState state, byte generation)
         {
             SenderGossipEndPoint = senderGossipEndPoint;
             ReceivedDateTime = receivedDateTime;
@@ -37,44 +37,44 @@ namespace GossipMesh.Core
             Generation = generation;
         }
 
-        internal NodeEvent(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Node node)
+        internal MemberEvent(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Member member)
         {
             SenderGossipEndPoint = senderGossipEndPoint;
             ReceivedDateTime = receivedDateTime;
 
-            IP = node.IP;
-            GossipPort = node.GossipPort;
-            State = node.State;
-            Generation = node.Generation;
-            Service = node.Service;
-            ServicePort = node.ServicePort;
+            IP = member.IP;
+            GossipPort = member.GossipPort;
+            State = member.State;
+            Generation = member.Generation;
+            Service = member.Service;
+            ServicePort = member.ServicePort;
         }
 
-        internal static NodeEvent ReadFrom(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Stream stream, bool isSender = false)
+        internal static MemberEvent ReadFrom(IPEndPoint senderGossipEndPoint, DateTime receivedDateTime, Stream stream, bool isSender = false)
         {
             if (stream.Position >= stream.Length)
             {
                 return null;
             }
 
-            var nodeEvent = new NodeEvent
+            var memberEvent = new MemberEvent
             {
                 SenderGossipEndPoint = senderGossipEndPoint,
                 ReceivedDateTime = receivedDateTime,
 
                 IP = isSender ? senderGossipEndPoint.Address : stream.ReadIPAddress(),
                 GossipPort = isSender ? (ushort)senderGossipEndPoint.Port : stream.ReadPort(),
-                State = isSender ? NodeState.Alive : stream.ReadNodeState(),
+                State = isSender ? MemberState.Alive : stream.ReadMemberState(),
                 Generation = (byte)stream.ReadByte(),
             };
 
-            if (nodeEvent.State == NodeState.Alive)
+            if (memberEvent.State == MemberState.Alive)
             {
-                nodeEvent.Service = (byte)stream.ReadByte();
-                nodeEvent.ServicePort = stream.ReadPort();
+                memberEvent.Service = (byte)stream.ReadByte();
+                memberEvent.ServicePort = stream.ReadPort();
             }
 
-            return nodeEvent;
+            return memberEvent;
         }
     
         public override string ToString()
@@ -90,20 +90,20 @@ namespace GossipMesh.Core
             ServicePort);
         }
 
-        public bool Equal(NodeEvent nodeEvent)
+        public bool Equal(MemberEvent memberEvent)
         {
-            return nodeEvent != null &&
-                    IP.Equals(nodeEvent.IP) &&
-                    GossipPort == nodeEvent.GossipPort &&
-                    State == nodeEvent.State &&
-                    Generation == nodeEvent.Generation &&
-                    Service == nodeEvent.Service &&
-                    ServicePort == nodeEvent.ServicePort;
+            return memberEvent != null &&
+                    IP.Equals(memberEvent.IP) &&
+                    GossipPort == memberEvent.GossipPort &&
+                    State == memberEvent.State &&
+                    Generation == memberEvent.Generation &&
+                    Service == memberEvent.Service &&
+                    ServicePort == memberEvent.ServicePort;
         }
 
-        public bool NotEqual(NodeEvent nodeEvent)
+        public bool NotEqual(MemberEvent memberEvent)
         {
-            return !Equal(nodeEvent);
+            return !Equal(memberEvent);
         }
     }
 }

@@ -5,10 +5,10 @@ using System.Net;
 
 namespace GossipMesh.Seed.Stores
 {
-    public interface INodeGraphStore
+    public interface IMemberEventsStore
     {
-        Graph.Node AddOrUpdateNode(NodeEvent nodeEvent);
+        void Add(MemberEvent memberEvent);
 
-        Graph GetGraph();
+        MemberEvent[]  GetAll();
     }
 }

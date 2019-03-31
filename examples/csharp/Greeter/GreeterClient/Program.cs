@@ -24,7 +24,7 @@ namespace GreeterClient
             var logger = CreateLogger();
 
             var loadBalancer = CreateLoadBalancer();
-            var gossiper = await StartGossiper(listenPort, seeds, new IListener[] { loadBalancer }, logger);
+            var gossiper = await StartGossiper(listenPort, seeds, new IMemberListener[] { loadBalancer }, logger);
 
             var stopwatch = new Stopwatch();
             while (true)
@@ -41,7 +41,7 @@ namespace GreeterClient
                     var response = await serviceClient.Client.SayHelloAsync(request).ResponseAsync.ConfigureAwait(false);
 
                     stopwatch.Stop();
-                    Console.WriteLine($"Response: {response.Message} From: {serviceClient.ServiceEndPoint} TimeTaken: {stopwatch.Elapsed.TotalMilliseconds}ms");
+                    Console.WriteLine($"Response: {response.Message} From: {serviceClient.ServiceEndPoint} TimeTaken: {stopwatch.ElapsedMilliseconds}ms");
                 }
 
                 catch (Exception ex)
@@ -69,12 +69,12 @@ namespace GreeterClient
             return new RandomLoadBalancer(serviceClientFactories);
         }
 
-        private static async Task<Gossiper> StartGossiper(ushort listenPort, IPEndPoint[] seeds, IListener[] listeners, ILogger logger)
+        private static async Task<Gossiper> StartGossiper(ushort listenPort, IPEndPoint[] seeds, IMemberListener[] memberListeners, ILogger logger)
         {
             var options = new GossiperOptions
             {
-                SeedNodes = seeds,
-                Listeners = listeners
+                SeedMembers = seeds,
+                MemberListeners = memberListeners
             };
 
             var gossiper = new Gossiper(listenPort, 0x03, listenPort, options, logger);

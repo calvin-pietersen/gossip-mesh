@@ -37,7 +37,7 @@ namespace GreeterServer
         {
             var options = new GossiperOptions
             {
-                SeedNodes = seeds,
+                SeedMembers = seeds,
             };
 
             var gossiper = new Gossiper(listenPort, 0x02, listenPort, options, logger);

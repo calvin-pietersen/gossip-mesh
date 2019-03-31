@@ -34,29 +34,29 @@ namespace GossipMesh.Seed
             {
                 option.PayloadSerializerSettings.Converters.Add(new IPAddressConverter());
                 option.PayloadSerializerSettings.Converters.Add(new IPEndPointConverter());
-                option.PayloadSerializerSettings.Converters.Add(new NodeStateConverter());
+                option.PayloadSerializerSettings.Converters.Add(new MemberStateConverter());
                 option.PayloadSerializerSettings.Converters.Add(new DateTimeConverter());
             });
 
-            services.AddSingleton<INodeGraphStore, NodeGraphStore>();
-            services.AddSingleton<INodeEventsStore, NodeEventsStore>();
-            services.AddSingleton<IListener, NodeListener>();
+            services.AddSingleton<IMemberGraphStore, MemberGraphStore>();
+            services.AddSingleton<IMemberEventsStore, MemberEventsStore>();
+            services.AddSingleton<IMemberListener, MemberListener>();
         }
 
-        public void Configure(ILogger<Startup> logger, IEnumerable<IListener> listeners, IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(ILogger<Startup> logger, IEnumerable<IMemberListener> memberListeners, IApplicationBuilder app, IHostingEnvironment env)
         {
             app.UseDefaultFiles();
             app.UseStaticFiles();
             app.UseSignalR(routes =>
             {
-                routes.MapHub<NodesHub>("/nodesHub");
+                routes.MapHub<MembersHub>("/membersHub");
             });
 
             var listenPort = ushort.Parse(_configuration["port"]);
             var options = new GossiperOptions
             {
-                SeedNodes = GetSeedEndPoints(),
-                Listeners = listeners
+                SeedMembers = GetSeedEndPoints(),
+                MemberListeners = memberListeners
             };
 
             var gossiper = new Gossiper(listenPort, 0x01, (ushort)5000, options, logger);

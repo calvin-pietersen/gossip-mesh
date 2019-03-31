@@ -18,20 +18,20 @@ initialize_topo();
 
 var nodes = {};
 
-var connection = new signalR.HubConnectionBuilder().withUrl("/nodesHub").build();
+var connection = new signalR.HubConnectionBuilder().withUrl("/membersHub").build();
 
-connection.on("InitializationMessage", function (graph, nodeEvents) {
+connection.on("InitializationMessage", function (graph, memberEvents) {
 
     for (var i = 0, len = graph.nodes.length; i < len; i++) {
         nodes[graph.nodes[i].id] = graph.nodes[i];
     }
 
     load(graph.nodes);
-    addNodeEventsToTable(nodeEvents);
+    addMemberEventsToTable(memberEvents);
 });
 
-connection.on("NodeUpdatedMessage", function (nodeEvent, node) {
-    dataTable.row.add(nodeEventToRecord(nodeEvent)).draw();
+connection.on("MemberUpdatedMessage", function (memberEvent, node) {
+    dataTable.row.add(memberEventToRecord(memberEvent)).draw();
 
     if (node.state === "Pruned") {
         delete nodes[node.id];
@@ -46,24 +46,24 @@ connection.start().catch(function (err) {
     return console.error(err.toString());
 });
 
-function addNodeEventsToTable(nodeEvents) {
+function addMemberEventsToTable(memberEvents) {
     var dataSet = [];
-    for (var i = 0, len = nodeEvents.length; i < len; i++) {
-       dataSet.push(nodeEventToRecord(nodeEvents[i]));
+    for (var i = 0, len = memberEvents.length; i < len; i++) {
+       dataSet.push(memberEventToRecord(memberEvents[i]));
     }
 
     dataTable.rows.add(dataSet).draw();
 }
 
-function nodeEventToRecord(nodeEvent) {
+function memberEventToRecord(memberEvent) {
     return [
-            nodeEvent.receivedDateTime,
-            nodeEvent.senderGossipEndPoint,
-            nodeEvent.ip,
-            nodeEvent.state,
-            nodeEvent.gossipPort,
-            nodeEvent.generation,
-            nodeEvent.service,
-            nodeEvent.servicePort
+            memberEvent.receivedDateTime,
+            memberEvent.senderGossipEndPoint,
+            memberEvent.ip,
+            memberEvent.state,
+            memberEvent.gossipPort,
+            memberEvent.generation,
+            memberEvent.service,
+            memberEvent.servicePort
     ]
 }

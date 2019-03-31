@@ -12,7 +12,7 @@ namespace GossipMesh.Seed
         {
             public IPEndPoint Id { get; set; }
             public IPAddress Ip { get; set; }
-            public NodeState State { get; set; }
+            public MemberState State { get; set; }
             public byte Generation { get; set; }
             public byte Service { get; set; }
             public ushort ServicePort { get; set; }
