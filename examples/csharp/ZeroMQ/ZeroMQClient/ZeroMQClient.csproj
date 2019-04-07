@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <LangVersion>7.1</LangVersion>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NetMQ" Version="4.0.0.207-pre" />
+
+    <ProjectReference Include="..\..\..\..\src\csharp\GossipMesh.Core\GossipMesh.Core.csproj" />
+    <ProjectReference Include="..\..\..\..\src\csharp\GossipMesh.LoadBalancing\GossipMesh.LoadBalancing.csproj" />
+    <ProjectReference Include="..\..\Common\Common.csproj"/>
+  </ItemGroup>
+
+</Project>
