@@ -6,7 +6,7 @@ using GossipMesh.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Grpc.Core;
-using Greeter;
+using GossipMesh.Examples.Common;
 
 namespace GreeterServer
 {
@@ -15,22 +15,14 @@ namespace GreeterServer
         public static async Task Main(string[] args)
         {
             var listenPort = ushort.Parse(args[0]);
-            var seeds = args.Skip(1).Select(IPEndPointFromString).ToArray();
+            var seeds = args.Skip(1).Select(Utils.IPEndPointFromString).ToArray();
 
-            var logger = CreateLogger();
+            var logger = Utils.CreateLogger<Program>();
             var server = StartGrpcServer(listenPort, logger);
             var gossiper = await StartGossiper(listenPort, seeds, logger);
 
             await Task.Delay(-1);
             await server.ShutdownAsync();
-        }
-
-        private static ILogger CreateLogger()
-        {
-            var loggerFactory = new LoggerFactory();
-            loggerFactory.AddProvider(new ConsoleLoggerProvider());
-            return loggerFactory
-                .CreateLogger<Program>();
         }
 
         private static async Task<Gossiper> StartGossiper(ushort listenPort, IPEndPoint[] seeds, ILogger logger)
@@ -56,12 +48,6 @@ namespace GreeterServer
 
             server.Start();
             return server;
-        }
-
-        private static IPEndPoint IPEndPointFromString(string ipEndPointString)
-        {
-            var endpoint = ipEndPointString.Split(":");
-            return new IPEndPoint(IPAddress.Parse(endpoint[0]), int.Parse(endpoint[1]));
         }
     }
 }

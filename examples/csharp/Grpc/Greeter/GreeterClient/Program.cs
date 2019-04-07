@@ -7,10 +7,10 @@ using GossipMesh.LoadBalancing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Grpc.Core;
-using Greeter;
 using Helloworld;
 using System.Diagnostics;
 using System.Collections.Generic;
+using GossipMesh.Examples.Common;
 
 namespace GreeterClient
 {
@@ -19,9 +19,9 @@ namespace GreeterClient
         public static async Task Main(string[] args)
         {
             var listenPort = ushort.Parse(args[0]);
-            var seeds = args.Skip(1).Select(IPEndPointFromString).ToArray();
+            var seeds = args.Skip(1).Select(Utils.IPEndPointFromString).ToArray();
 
-            var logger = CreateLogger();
+            var logger = Utils.CreateLogger<Program>();
 
             var loadBalancer = CreateLoadBalancer();
             var gossiper = await StartGossiper(listenPort, seeds, new IMemberListener[] { loadBalancer }, logger);
@@ -41,7 +41,7 @@ namespace GreeterClient
                     var response = await serviceClient.Client.SayHelloAsync(request).ResponseAsync.ConfigureAwait(false);
 
                     stopwatch.Stop();
-                    Console.WriteLine($"Response: {response.Message} From: {serviceClient.ServiceEndPoint} TimeTaken: {stopwatch.ElapsedMilliseconds}ms");
+                    Console.WriteLine($"Response: {response.Message} From: {serviceClient.ServiceEndPoint} TimeTaken: {stopwatch.Elapsed.TotalMilliseconds}ms");
                 }
 
                 catch (Exception ex)
@@ -49,14 +49,6 @@ namespace GreeterClient
                     logger.LogError(ex.Message);
                 }
             }
-        }
-
-        private static ILogger CreateLogger()
-        {
-            var loggerFactory = new LoggerFactory();
-            loggerFactory.AddProvider(new ConsoleLoggerProvider());
-            return loggerFactory
-                .CreateLogger<Program>();
         }
 
         private static RandomLoadBalancer CreateLoadBalancer()
@@ -81,12 +73,6 @@ namespace GreeterClient
             await gossiper.StartAsync();
 
             return gossiper;
-        }
-
-        private static IPEndPoint IPEndPointFromString(string ipEndPointString)
-        {
-            var endpoint = ipEndPointString.Split(":");
-            return new IPEndPoint(IPAddress.Parse(endpoint[0]), int.Parse(endpoint[1]));
         }
     }
 }

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <LangVersion>7.1</LangVersion>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aeron.Client" Version="1.15.0" />
+    <PackageReference Include="Aeron.Driver" Version="1.15.0" />
+
+    <ProjectReference Include="..\..\..\..\src\csharp\GossipMesh.Core\GossipMesh.Core.csproj" />
+    <ProjectReference Include="..\..\..\..\src\csharp\GossipMesh.LoadBalancing\GossipMesh.LoadBalancing.csproj" />
+    <ProjectReference Include="..\..\Common\Common.csproj"/>
+  </ItemGroup>
+
+</Project>
