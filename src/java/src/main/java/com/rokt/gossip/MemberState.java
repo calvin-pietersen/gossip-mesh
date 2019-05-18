@@ -1,6 +1,6 @@
 package com.rokt.gossip;
 
-public enum NodeHealth {
+public enum MemberState {
     ALIVE,
     SUSPICIOUS,
     DEAD,

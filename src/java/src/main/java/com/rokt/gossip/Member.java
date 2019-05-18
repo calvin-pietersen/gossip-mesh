@@ -2,33 +2,33 @@ package com.rokt.gossip;
 
 import java.util.Objects;
 
-public class NodeState {
-    public final NodeHealth health;
+public class Member {
+    public final MemberState state;
     final byte generation;
     public final byte serviceByte;
     public final short servicePort;
     long timesMentioned;
 
-    NodeState(NodeHealth health, byte generation, byte serviceByte, short servicePort) {
-        this.health = health;
+    Member(MemberState state, byte generation, byte serviceByte, short servicePort) {
+        this.state = state;
         this.generation = generation;
         this.serviceByte = serviceByte;
         this.servicePort = servicePort;
         this.timesMentioned = 0;
     }
 
-    NodeState merge(NodeState other) {
+    Member merge(Member other) {
         if (isLaterGeneration(other.generation, this.generation)) {
             return other;
-        } else if (other.health.ordinal() > this.health.ordinal()) {
+        } else if (other.state.ordinal() > this.state.ordinal()) {
             return other;
         } else {
             return this;
         }
     }
 
-    NodeState withHealth(NodeHealth health) {
-        return new NodeState(health, this.generation, this.serviceByte, this.servicePort);
+    Member withHealth(MemberState state) {
+        return new Member(state, this.generation, this.serviceByte, this.servicePort);
     }
 
     // is `gen1` later than `gen2`?
@@ -41,22 +41,22 @@ public class NodeState {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        NodeState nodeState = (NodeState) o;
+        Member nodeState = (Member) o;
         return generation == nodeState.generation &&
-                health == nodeState.health &&
+                state == nodeState.state &&
                 serviceByte == nodeState.serviceByte &&
                 servicePort == nodeState.servicePort;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(health, generation, serviceByte, servicePort);
+        return Objects.hash(state, generation, serviceByte, servicePort);
     }
 
     @Override
     public String toString() {
         return String.format("%s[%s]{%s:%s}",
-                health, generation,
+                state, generation,
                 serviceByte, servicePort);
     }
 }

@@ -1,20 +1,20 @@
 package helloworld;
 
 import com.rokt.gossip.Listener;
-import com.rokt.gossip.NodeAddress;
-import com.rokt.gossip.NodeState;
+import com.rokt.gossip.MemberAddress;
+import com.rokt.gossip.Member;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.rokt.gossip.NodeHealth.*;
+import static com.rokt.gossip.MemberState.*;
 
 @SuppressWarnings("unchecked")
 class LoadBalancer implements Listener {
     private final Map<Byte, Object> serviceFactories;
-    private final Map<Byte, Map<NodeAddress, Object>> services;
+    private final Map<Byte, Map<MemberAddress, Object>> services;
     private final Random random;
 
     public LoadBalancer() {
@@ -37,7 +37,7 @@ class LoadBalancer implements Listener {
         }
 
         public T getEndpoint() {
-            Map<NodeAddress, ?> nodes = LoadBalancer.this.services.get(serviceByte);
+            Map<MemberAddress, ?> nodes = LoadBalancer.this.services.get(serviceByte);
             if (nodes == null || nodes.isEmpty()) {
                 throw new RuntimeException("No services available to handle request");
             } else {
@@ -48,16 +48,16 @@ class LoadBalancer implements Listener {
         }
     }
 
-    private static boolean isAlive(NodeState state) {
+    private static boolean isAlive(Member state) {
         return state != null && (state.health == ALIVE || state.health == SUSPICIOUS);
     }
 
-    private static boolean isDead(NodeState state) {
+    private static boolean isDead(Member state) {
         return state == null || state.health == DEAD || state.health == LEFT;
     }
 
     @Override
-    public void accept(NodeAddress from, NodeAddress address, NodeState state, NodeState oldState) {
+    public void accept(MemberAddress from, MemberAddress address, Member state, Member oldState) {
         boolean serviceUpdated = (state != null && oldState != null)
                 && (state.serviceByte != oldState.serviceByte)
                 && (state.servicePort != oldState.servicePort);

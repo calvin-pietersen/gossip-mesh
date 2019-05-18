@@ -12,35 +12,33 @@ import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class Gossip {
-    private static final Logger LOGGER = Logger.getLogger(Gossip.class.getCanonicalName());
-    private static final int PROTOCOL_PERIOD_MS = 1000;
-    private static final int PING_TIMEOUT_MS = 200;
-    private static final int INDIRECT_PING_TIMEOUT_MS = 400;
-    private static final int DEATH_TIMEOUT_MS = 60000;
-    private final Map<NodeAddress, NodeState> states;
-    private final Map<NodeAddress, ScheduledFuture> waiting;
+public class Gossiper {
+    private static final Logger LOGGER = Logger.getLogger(Gossiper.class.getCanonicalName());
+    private final Map<MemberAddress, Member> members;
+    private final Map<MemberAddress, ScheduledFuture> waiting;
     private final byte serviceByte;
     private final short servicePort;
+    private final GossiperOptions options;
     private final ScheduledExecutorService executor;
     private final DatagramSocket socket;
     private final HashMap<Object, Listener> listeners;
     private Thread listener;
     private byte generation;
 
-    public Gossip(int serviceByte, int servicePort) throws IOException {
-        this(new DatagramSocket(), serviceByte, servicePort);
+    public Gossiper(int serviceByte, int servicePort, GossiperOptions options) throws IOException {
+        this(new DatagramSocket(), serviceByte, servicePort, options);
     }
 
-    public Gossip(int port, int serviceByte, int servicePort) throws IOException {
-        this(new DatagramSocket(port), serviceByte, servicePort);
+    public Gossiper(int port, int serviceByte, int servicePort, GossiperOptions options) throws IOException {
+        this(new DatagramSocket(port), serviceByte, servicePort, options);
     }
 
-    public Gossip(DatagramSocket socket, int serviceByte, int servicePort) {
-        this.states = new HashMap<>();
+    public Gossiper(DatagramSocket socket, int serviceByte, int servicePort, GossiperOptions options) {
+        this.members = new HashMap<>();
         this.waiting = new HashMap<>();
         this.serviceByte = (byte) serviceByte;
         this.servicePort = (short) servicePort;
+        this.options = options;
         this.executor = new ScheduledThreadPoolExecutor(1);
         this.socket = socket;
         this.listeners = new HashMap<>();
@@ -63,7 +61,7 @@ public class Gossip {
             } catch (IOException ex) {
                 LOGGER.log(Level.SEVERE, "Exception thrown when trying to probe", ex);
             }
-        }), 0, PROTOCOL_PERIOD_MS, TimeUnit.MILLISECONDS);
+        }), 0, options.getProtocolPeriodMs(), TimeUnit.MILLISECONDS);
         socket.setSoTimeout(500);
         this.listener = new Thread(() -> {
             byte[] buffer = new byte[508];
@@ -72,7 +70,7 @@ public class Gossip {
                     DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                     socket.receive(packet);
                     assert (packet.getOffset() == 0);
-                    NodeAddress address = new NodeAddress(
+                    MemberAddress address = new MemberAddress(
                             (Inet4Address) packet.getAddress(),
                             (short) packet.getPort());
                     byte[] recvBuffer = Arrays.copyOf(packet.getData(), packet.getLength());
@@ -99,12 +97,12 @@ public class Gossip {
         return socket.getLocalPort();
     }
 
-    private Iterable<NodeAddress> randomNodes() {
+    private Iterable<MemberAddress> randomNodes() {
         return randomNodes((address, state) -> true);
     }
 
-    private Iterable<NodeAddress> randomNodes(BiPredicate<NodeAddress, NodeState> matching) {
-        return () -> this.states.entrySet()
+    private Iterable<MemberAddress> randomNodes(BiPredicate<MemberAddress, Member> matching) {
+        return () -> this.members.entrySet()
                 .stream()
                 .filter(x -> matching.test(x.getKey(), x.getValue()))
                 .map(Map.Entry::getKey)
@@ -144,8 +142,8 @@ public class Gossip {
     }
 
     private void probe() throws IOException {
-        int i = 3;
-        for (NodeAddress address : randomNodes()) {
+        int i = options.getFanoutFactor();
+        for (MemberAddress address : randomNodes()) {
             if (--i < 0) {
                 break;
             }
@@ -154,30 +152,30 @@ public class Gossip {
         }
     }
 
-    private static NodeAddress parseAddress(DataInput stream) throws IOException {
+    private static MemberAddress parseAddress(DataInput stream) throws IOException {
         byte[] addressBytes = new byte[4];
         stream.readFully(addressBytes);
-        return new NodeAddress(
+        return new MemberAddress(
                 (Inet4Address) Inet4Address.getByAddress(addressBytes),
                 stream.readShort());
     }
 
-    private static void writeAddress(DataOutput output, NodeAddress address) throws IOException {
+    private static void writeAddress(DataOutput output, MemberAddress address) throws IOException {
         output.write(address.address.getAddress());
         output.writeShort(address.port);
     }
 
-    private static void writeEvent(DataOutput output, NodeAddress address, NodeState state) throws IOException {
+    private static void writeEvent(DataOutput output, MemberAddress address, Member member) throws IOException {
         writeAddress(output, address);
-        output.write(state.health.ordinal());
-        output.write(state.generation);
-        if (state.health == NodeHealth.ALIVE) {
-            output.write(state.serviceByte);
-            output.writeShort(state.servicePort);
+        output.write(member.state.ordinal());
+        output.write(member.generation);
+        if (member.state == MemberState.ALIVE) {
+            output.write(member.serviceByte);
+            output.writeShort(member.servicePort);
         }
     }
 
-    private void scheduleTask(NodeAddress address, Runnable command, int delay, TimeUnit units) {
+    private void scheduleTask(MemberAddress address, Runnable command, int delay, TimeUnit units) {
         this.waiting.computeIfAbsent(address, a -> {
             ScheduledFuture<?>[] future = new ScheduledFuture<?>[1];
             future[0] = this.executor.schedule(loggingExceptions(() -> {
@@ -188,10 +186,10 @@ public class Gossip {
         });
     }
 
-    private void sendMessage(NodeAddress address, MessageWriter<DataOutput> header) throws IOException {
+    private void sendMessage(MemberAddress address, MessageWriter<DataOutput> header) throws IOException {
         byte[] outBuffer = new byte[508];
         int limit = 0;
-        Set<NodeAddress> sending = new HashSet<>();
+        Set<MemberAddress> sending = new HashSet<>();
         try (FiniteByteArrayOutputStream os = new FiniteByteArrayOutputStream(outBuffer);
              DataOutputStream dos = new DataOutputStream(os)) {
             dos.write(0); // protocol version
@@ -201,20 +199,20 @@ public class Gossip {
             dos.write(this.serviceByte);
             dos.writeShort(this.servicePort);
 
-            NodeState receiver = this.states.get(address);
+            Member receiver = this.members.get(address);
             if (receiver == null) {
-                dos.write(NodeHealth.DEAD.ordinal());
+                dos.write(MemberState.DEAD.ordinal());
                 dos.write(0);
             } else {
-                dos.write(receiver.health.ordinal());
+                dos.write(receiver.state.ordinal());
                 dos.write(receiver.generation);
             }
 
             limit = os.position();
 
-            PriorityQueue<Map.Entry<NodeAddress, NodeState>> queue = new PriorityQueue<>(Comparator.comparingLong(a -> a.getValue().timesMentioned));
-            queue.addAll(this.states.entrySet());
-            for (Map.Entry<NodeAddress, NodeState> entry : queue) {
+            PriorityQueue<Map.Entry<MemberAddress, Member>> queue = new PriorityQueue<>(Comparator.comparingLong(a -> a.getValue().timesMentioned));
+            queue.addAll(this.members.entrySet());
+            for (Map.Entry<MemberAddress, Member> entry : queue) {
                 if (Objects.equals(entry.getKey(), address)) {
                     continue;
                 }
@@ -231,39 +229,39 @@ public class Gossip {
         packet.setPort(address.port & 0xFFFF);
         socket.send(packet);
 
-        for (NodeAddress sent : sending) {
-            this.states.get(sent).timesMentioned++;
+        for (MemberAddress sent : sending) {
+            this.members.get(sent).timesMentioned++;
         }
     }
 
     public void connectTo(Inet4Address address, int port) {
         this.executor.execute(loggingExceptions(() -> {
             try {
-                this.ping(new NodeAddress(address, (short) port));
+                this.ping(new MemberAddress(address, (short) port));
             } catch (IOException ex) {
                 LOGGER.log(Level.SEVERE, "Exception thrown while connecting to " + address, ex);
             }
         }));
     }
 
-    private void ping(NodeAddress address) throws IOException {
+    private void ping(MemberAddress address) throws IOException {
         sendMessage(address, dos -> dos.write(0x01));
-        NodeState state = updateState(null, address, s -> s == null ? new NodeState(NodeHealth.DEAD, (byte) 0, (byte) 0, (byte) 0) : s);
-        if (state != null) {
+        Member member = updateMember(null, address, m -> m == null ? new Member(MemberState.DEAD, (byte) 0, (byte) 0, (byte) 0) : m);
+        if (member != null) {
             scheduleTask(address, () -> {
                 try {
-                    indirectPing(address, state);
+                    indirectPing(address, member);
                 } catch (IOException ex) {
                     LOGGER.log(Level.SEVERE, "Exception thrown while performing indirect ping of " + address, ex);
                 }
-            }, PING_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            }, options.getPingTimeoutMs(), TimeUnit.MILLISECONDS);
         }
     }
 
-    private void indirectPing(NodeAddress address, NodeState state) throws IOException {
-        updateState(null, address, s -> s == null ? null : s.merge(state.withHealth(NodeHealth.SUSPICIOUS)));
-        int i = 3;
-        for (NodeAddress relay : randomNodes((a, s) -> !Objects.equals(a, address))) {
+    private void indirectPing(MemberAddress address, Member member) throws IOException {
+        updateMember(null, address, m -> m == null ? null : m.merge(member.withHealth(MemberState.SUSPICIOUS)));
+        int i = options.getNumberOfIndirectEndPoints();
+        for (MemberAddress relay : randomNodes((a, m) -> !Objects.equals(a, address))) {
             if (--i < 0) {
                 break;
             }
@@ -273,15 +271,15 @@ public class Gossip {
             });
         }
         scheduleTask(address, () -> {
-            NodeState dead = updateState(null, address, s -> s == null ? null : s.merge(state.withHealth(NodeHealth.DEAD)));
+            Member dead = updateMember(null, address, m -> m == null ? null : m.merge(member.withHealth(MemberState.DEAD)));
             scheduleTask(address, () -> {
                 // only prune the state if it hasn't changed
-                updateState(null, address, s -> Objects.equals(s, dead) ? null : s);
-            }, DEATH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        }, INDIRECT_PING_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                updateMember(null, address, m -> Objects.equals(m, dead) ? null : m);
+            }, options.getDeathTimeoutMs(), TimeUnit.MILLISECONDS);
+        }, options.getIndirectPingTimeoutMs(), TimeUnit.MILLISECONDS);
     }
 
-    private void handleMessage(NodeAddress address, DataInput input) throws IOException {
+    private void handleMessage(MemberAddress address, DataInput input) throws IOException {
         byte version = input.readByte();
         if (version == 0) {
             byte b = input.readByte();
@@ -306,27 +304,27 @@ public class Gossip {
         }
     }
 
-    private void removeAndCancel(NodeAddress address) {
+    private void removeAndCancel(MemberAddress address) {
         ScheduledFuture<?> f = this.waiting.remove(address);
         if (f != null) {
             f.cancel(true);
         }
     }
 
-    private void handleDirectAck(NodeAddress address, DataInput input) throws IOException {
+    private void handleDirectAck(MemberAddress address, DataInput input) throws IOException {
         removeAndCancel(address); // if we were waiting to hear from them - here they are!
         handleEvents(address, input);
     }
 
-    private void handleDirectPing(NodeAddress address, DataInput input) throws IOException {
+    private void handleDirectPing(MemberAddress address, DataInput input) throws IOException {
         removeAndCancel(address); // if we were waiting to hear from them - here they are!
         handleEvents(address, input);
         sendMessage(address, dos -> dos.write(0x00));
     }
 
-    private void handleRequest(NodeAddress address, DataInput input, byte b) throws IOException {
+    private void handleRequest(MemberAddress address, DataInput input, byte b) throws IOException {
         removeAndCancel(address); // if we were waiting to hear from them - here they are!
-        NodeAddress destination = parseAddress(input);
+        MemberAddress destination = parseAddress(input);
         handleEvents(address, input);
 
         sendMessage(address, dos -> {
@@ -335,9 +333,9 @@ public class Gossip {
         });
     }
 
-    private void handleForwarded(NodeAddress address, DataInput input, byte b) throws IOException {
+    private void handleForwarded(MemberAddress address, DataInput input, byte b) throws IOException {
         removeAndCancel(address); // if we were waiting to hear from them - here they are!
-        NodeAddress source = parseAddress(input);
+        MemberAddress source = parseAddress(input);
         handleEvents(address, input);
 
         switch (b) {
@@ -353,36 +351,36 @@ public class Gossip {
         }
     }
 
-    private NodeState updateState(NodeAddress from, NodeAddress address, Function<NodeState, NodeState> update) {
-        NodeState oldState = this.states.get(address);
-        NodeState newState = update.apply(oldState);
-        if (!Objects.equals(oldState, newState)) {
-            if (newState == null) {
-                this.states.remove(address);
+    private Member updateMember(MemberAddress from, MemberAddress address, Function<Member, Member> update) {
+        Member oldMember = this.members.get(address);
+        Member newMember = update.apply(oldMember);
+        if (!Objects.equals(oldMember, newMember)) {
+            if (newMember == null) {
+                this.members.remove(address);
             } else {
-                this.states.put(address, newState);
+                this.members.put(address, newMember);
             }
-            notifyListeners(from, address, newState, oldState);
+            notifyListeners(from, address, newMember, oldMember);
         }
-        return newState;
+        return newMember;
     }
 
-    private void handleEvents(NodeAddress from, DataInput input) {
+    private void handleEvents(MemberAddress from, DataInput input) {
         try {
             byte senderGeneration = input.readByte();
             byte senderService = input.readByte();
             short senderServicePort = input.readShort();
-            NodeState senderState = new NodeState(NodeHealth.ALIVE,
+            Member senderMember = new Member(MemberState.ALIVE,
                     senderGeneration,
                     senderService,
                     senderServicePort);
-            updateState(null, from, s -> s == null ? senderState : s.merge(senderState));
+            updateMember(null, from, m -> m == null ? senderMember : m.merge(senderMember));
 
-            NodeHealth myHealth = NodeHealth.values()[input.readByte()];
+            MemberState myState = MemberState.values()[input.readByte()];
             byte myGeneration = input.readByte();
-            if (myHealth == NodeHealth.SUSPICIOUS || myHealth == NodeHealth.DEAD) {
+            if (myState == MemberState.SUSPICIOUS || myState == MemberState.DEAD) {
                 byte newGeneration = (byte) (myGeneration + 1);
-                if (NodeState.isLaterGeneration(generation, newGeneration)) {
+                if (Member.isLaterGeneration(generation, newGeneration)) {
                     newGeneration = generation;
                 }
                 this.generation = newGeneration;
@@ -392,18 +390,18 @@ public class Gossip {
             // because DataInput doesn't let us see whether we're at the end
             //noinspection InfiniteLoopStatement
             while (true) {
-                NodeAddress address = parseAddress(input);
-                NodeHealth health = NodeHealth.values()[input.readByte()];
+                MemberAddress address = parseAddress(input);
+                MemberState state = MemberState.values()[input.readByte()];
                 byte generation = input.readByte();
-                byte serviceByte = (health == NodeHealth.ALIVE ? input.readByte() : 0);
-                short servicePort = (health == NodeHealth.ALIVE ? input.readShort() : 0);
-                NodeState newState = new NodeState(health, generation, serviceByte, servicePort);
+                byte serviceByte = (state == MemberState.ALIVE ? input.readByte() : 0);
+                short servicePort = (state == MemberState.ALIVE ? input.readShort() : 0);
+                Member newMember = new Member(state, generation, serviceByte, servicePort);
 
-                updateState(from, address, s -> {
-                    if (s != null) {
-                        return s.merge(newState);
-                    } else if (health == NodeHealth.ALIVE || health == NodeHealth.SUSPICIOUS) {
-                        return newState;
+                updateMember(from, address, m -> {
+                    if (m != null) {
+                        return m.merge(newMember);
+                    } else if (state == MemberState.ALIVE || state == MemberState.SUSPICIOUS) {
+                        return newMember;
                     } else {
                         // if we don't already know about this node and we get a DEAD or a LEFT: we don't care.
                         // Just ignore it. This means that our pruning will actually remove nodes, because we
@@ -417,7 +415,7 @@ public class Gossip {
         }
     }
 
-    private void notifyListeners(NodeAddress from, NodeAddress address, NodeState newState, NodeState oldState) {
+    private void notifyListeners(MemberAddress from, MemberAddress address, Member newState, Member oldState) {
         for (Listener listener : listeners.values()) {
             listener.accept(from, address, newState, oldState);
         }
