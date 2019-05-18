@@ -4,7 +4,9 @@ namespace GossipMesh.Core
     {
         Ping = 0x01,
         Ack = 0x00,
-        PingRequest = 0x03,
-        AckRequest = 0x02,
+        RequestPing = 0x05,
+        RequestAck = 0x04,
+        ForwardedPing = 0x07,
+        ForwardedAck = 0x06,
     }
 }

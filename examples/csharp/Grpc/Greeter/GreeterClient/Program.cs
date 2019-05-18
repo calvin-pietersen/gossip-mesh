@@ -7,10 +7,10 @@ using GossipMesh.LoadBalancing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Grpc.Core;
-using Greeter;
 using Helloworld;
 using System.Diagnostics;
 using System.Collections.Generic;
+using GossipMesh.Examples.Common;
 
 namespace GreeterClient
 {
@@ -18,13 +18,13 @@ namespace GreeterClient
     {
         public static async Task Main(string[] args)
         {
-            var listenEndPoint = IPEndPointFromString(args[0]);
-            var seeds = args.Skip(1).Select(IPEndPointFromString).ToArray();
+            var listenPort = ushort.Parse(args[0]);
+            var seeds = args.Skip(1).Select(Utils.IPEndPointFromString).ToArray();
 
-            var logger = CreateLogger();
+            var logger = Utils.CreateLogger<Program>();
 
             var loadBalancer = CreateLoadBalancer();
-            var gossiper = StartGossiper(listenEndPoint, seeds, new IMemberListener[] { loadBalancer }, logger);
+            var gossiper = await StartGossiper(listenPort, seeds, new IMemberListener[] { loadBalancer }, logger);
 
             var stopwatch = new Stopwatch();
             while (true)
@@ -41,7 +41,7 @@ namespace GreeterClient
                     var response = await serviceClient.Client.SayHelloAsync(request).ResponseAsync.ConfigureAwait(false);
 
                     stopwatch.Stop();
-                    Console.WriteLine($"Response: {response.Message} From: {serviceClient.ServiceEndPoint} TimeTaken: {stopwatch.ElapsedMilliseconds}ms");
+                    Console.WriteLine($"Response: {response.Message} From: {serviceClient.ServiceEndPoint} TimeTaken: {stopwatch.Elapsed.TotalMilliseconds}ms");
                 }
 
                 catch (Exception ex)
@@ -49,14 +49,6 @@ namespace GreeterClient
                     logger.LogError(ex.Message);
                 }
             }
-        }
-
-        private static ILogger CreateLogger()
-        {
-            var loggerFactory = new LoggerFactory();
-            loggerFactory.AddProvider(new ConsoleLoggerProvider());
-            return loggerFactory
-                .CreateLogger<Program>();
         }
 
         private static RandomLoadBalancer CreateLoadBalancer()
@@ -68,30 +60,19 @@ namespace GreeterClient
 
             return new RandomLoadBalancer(serviceClientFactories);
         }
-        private static Gossiper StartGossiper(IPEndPoint listenEndPoint, IPEndPoint[] seeds, IMemberListener[] memberListeners, ILogger logger)
+
+        private static async Task<Gossiper> StartGossiper(ushort listenPort, IPEndPoint[] seeds, IMemberListener[] memberListeners, ILogger logger)
         {
             var options = new GossiperOptions
             {
-                MaxUdpPacketBytes = 508,
-                ProtocolPeriodMilliseconds = 200,
-                AckTimeoutMilliseconds = 100,
-                NumberOfIndirectEndpoints = 2,
-                ListenPort = (ushort)listenEndPoint.Port,
-                MemberIP = listenEndPoint.Address,
-                Service = (byte)3,
-                ServicePort = (ushort)listenEndPoint.Port,
-                SeedMembers = seeds
+                SeedMembers = seeds,
+                MemberListeners = memberListeners
             };
 
-            var gossiper = new Gossiper(options, Enumerable.Empty<IMemberEventsListener>(), memberListeners, logger);
-            gossiper.Start();
+            var gossiper = new Gossiper(listenPort, 0x03, listenPort, options, logger);
+            await gossiper.StartAsync();
 
             return gossiper;
-        }
-        private static IPEndPoint IPEndPointFromString(string ipEndPointString)
-        {
-            var endpoint = ipEndPointString.Split(":");
-            return new IPEndPoint(IPAddress.Parse(endpoint[0]), int.Parse(endpoint[1]));
         }
     }
 }

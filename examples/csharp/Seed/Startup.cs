@@ -41,10 +41,9 @@ namespace GossipMesh.Seed
             services.AddSingleton<IMemberGraphStore, MemberGraphStore>();
             services.AddSingleton<IMemberEventsStore, MemberEventsStore>();
             services.AddSingleton<IMemberListener, MemberListener>();
-            services.AddSingleton<IMemberEventsListener, MemberEventsListener>();
         }
 
-        public void Configure(ILogger<Startup> logger, IEnumerable<IMemberListener> memberListeners, IEnumerable<IMemberEventsListener> memberEventListeners, IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(ILogger<Startup> logger, IEnumerable<IMemberListener> memberListeners, IApplicationBuilder app, IHostingEnvironment env)
         {
             app.UseDefaultFiles();
             app.UseStaticFiles();
@@ -53,22 +52,26 @@ namespace GossipMesh.Seed
                 routes.MapHub<MembersHub>("/membersHub");
             });
 
+            var listenPort = ushort.Parse(_configuration["port"]);
             var options = new GossiperOptions
             {
-                MaxUdpPacketBytes = 508,
-                ProtocolPeriodMilliseconds = 200,
-                AckTimeoutMilliseconds = 100,
-                NumberOfIndirectEndpoints = 2,
-                ListenPort = ushort.Parse(_configuration["port"]),
-                MemberIP = IPAddress.Parse(_configuration["ip"]),
-                Service = (byte)1,
-                ServicePort = (ushort)5000,
-                SeedMembers = new IPEndPoint[] {},
+                SeedMembers = GetSeedEndPoints(),
+                MemberListeners = memberListeners
             };
 
-            var gossiper = new Gossiper(options, memberEventListeners, memberListeners, logger);
+            var gossiper = new Gossiper(listenPort, 0x01, (ushort)5000, options, logger);
+            gossiper.StartAsync().ConfigureAwait(false);
+        }
 
-            gossiper.Start();
+        public IPEndPoint[] GetSeedEndPoints()
+        {
+            if (_configuration["seeds"] == null)
+            {
+                return new IPEndPoint[] {};
+            }
+             return _configuration["seeds"].Split(",")
+                .Select(endPoint => endPoint.Split(":"))
+                    .Select(endPointValues => new IPEndPoint(IPAddress.Parse(endPointValues[0]), ushort.Parse(endPointValues[1]))).ToArray();
         }
     }
 }

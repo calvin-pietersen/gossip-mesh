@@ -5,7 +5,9 @@
     <TargetFramework>netcoreapp2.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-      <ProjectReference Include="..\..\..\..\src\csharp\GossipMesh.Core\GossipMesh.Core.csproj" />
+      <ProjectReference Include="..\..\..\..\..\src\csharp\GossipMesh.Core\GossipMesh.Core.csproj" />
+      <ProjectReference Include="..\..\..\..\..\src\csharp\GossipMesh.LoadBalancing\GossipMesh.LoadBalancing.csproj" />
+      <ProjectReference Include="..\..\..\Common\Common.csproj"/>
       <ProjectReference Include="..\Greeter\Greeter.csproj" />
   </ItemGroup>
 </Project>

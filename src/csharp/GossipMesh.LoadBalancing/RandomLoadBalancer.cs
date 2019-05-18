@@ -11,7 +11,7 @@ namespace GossipMesh.LoadBalancing
     public class RandomLoadBalancer : ILoadBalancer, IMemberListener
     {
         private readonly Dictionary<byte, IServiceClientFactory> _serviceClientFactories = new Dictionary<byte, IServiceClientFactory>();
-        private readonly object _serviceToServiceClientsLocker = new object();
+        private readonly object _locker = new object();
         private Dictionary<byte, List<IServiceClient>> _serviceToServiceClients = new Dictionary<byte, List<IServiceClient>>();
 
         private readonly Random _random = new Random();
@@ -21,15 +21,15 @@ namespace GossipMesh.LoadBalancing
             _serviceClientFactories = serviceClientFactories;
         }
 
-        public async Task MemberUpdatedCallback(MemberEvent memberEvent)
+        public Task MemberUpdatedCallback(MemberEvent memberEvent)
         {
             IServiceClientFactory serviceClientFactory;
             if (!_serviceClientFactories.TryGetValue(memberEvent.Service, out serviceClientFactory))
             {
-                return;
+                return Task.CompletedTask;
             }
 
-            lock (_serviceToServiceClientsLocker)
+            lock (_locker)
             {
                 var newServiceToServiceClients = new Dictionary<byte, List<IServiceClient>>(_serviceToServiceClients);
 
@@ -41,13 +41,13 @@ namespace GossipMesh.LoadBalancing
 
                 List<IServiceClient> newServiceClients;
                 var serviceClient = serviceClients.FirstOrDefault(s => s.ServiceEndPoint.Address.Equals(memberEvent.IP) && s.ServiceEndPoint.Port == memberEvent.ServicePort);
-                if (serviceClient == null && memberEvent.State <= MemberState.Suspicious)
+                if (serviceClient == null && memberEvent.State == MemberState.Alive)
                 {
                     newServiceClients = new List<IServiceClient>(serviceClients);
                     newServiceClients.Add(serviceClientFactory.CreateServiceClient(new IPEndPoint(memberEvent.IP, memberEvent.ServicePort)));
                 }
 
-                else if (serviceClient != null && memberEvent.State >= MemberState.Dead)
+                else if (serviceClient != null && memberEvent.State >= MemberState.Suspicious)
                 {
                     newServiceClients = new List<IServiceClient>(serviceClients);
                     newServiceClients.Remove(serviceClient);
@@ -55,11 +55,13 @@ namespace GossipMesh.LoadBalancing
 
                 else
                 {
-                    return;
+                    return Task.CompletedTask;
                 }
 
                 newServiceToServiceClients[memberEvent.Service] = newServiceClients;
                 _serviceToServiceClients = newServiceToServiceClients;
+
+                return Task.CompletedTask;
             }
         }
 
