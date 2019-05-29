@@ -1,3 +1,6 @@
+using System.Linq;
+using System.Net;
+using GossipMesh.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -5,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SpaServices.AngularCli;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace SeedUI
 {
@@ -30,7 +34,7 @@ namespace SeedUI
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILogger<Startup> logger)
         {
             if (env.IsDevelopment())
             {
@@ -65,6 +69,26 @@ namespace SeedUI
                     spa.UseAngularCliServer(npmScript: "start");
                 }
             });
+
+            var listenPort = ushort.Parse(Configuration["port"]);
+            var options = new GossiperOptions
+            {
+                SeedMembers = GetSeedEndPoints(),
+            };
+
+            var gossiper = new Gossiper(listenPort, 0x01, (ushort)5000, options, logger);
+            gossiper.StartAsync().ConfigureAwait(false);
+        }
+
+        public IPEndPoint[] GetSeedEndPoints()
+        {
+            if (Configuration["seeds"] == null)
+            {
+                return new IPEndPoint[] { };
+            }
+            return Configuration["seeds"].Split(",")
+               .Select(endPoint => endPoint.Split(":"))
+                   .Select(endPointValues => new IPEndPoint(IPAddress.Parse(endPointValues[0]), ushort.Parse(endPointValues[1]))).ToArray();
         }
     }
 }
