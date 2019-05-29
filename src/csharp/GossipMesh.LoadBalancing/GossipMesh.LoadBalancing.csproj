@@ -3,6 +3,16 @@
     <LangVersion>7.1</LangVersion>
     <TargetFramework>netcoreapp2.1</TargetFramework>
   </PropertyGroup>
+
+    <PropertyGroup>
+    <Authors>The GossipMesh Authors</Authors>
+    <Copyright>Copyright 2019 The GossipMesh Authors</Copyright>
+    <Description>Load balancing using the GossipMesh protocol</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/calvin-pietersen/gossip-mesh</PackageProjectUrl>
+    <PackageTags>ServiceDiscovery Gossip LoadBalancing</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
       <ProjectReference Include="..\GossipMesh.Core\GossipMesh.Core.csproj" />
   </ItemGroup>
