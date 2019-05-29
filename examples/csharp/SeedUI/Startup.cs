@@ -1,6 +1,9 @@
 using System.Linq;
 using System.Net;
 using GossipMesh.Core;
+using GossipMesh.SeedUI.Hubs;
+using GossipMesh.SeedUI.Json;
+using GossipMesh.SeedUI.Stores;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -10,7 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace SeedUI
+namespace GossipMesh.SeedUI
 {
     public class Startup
     {
@@ -31,6 +34,19 @@ namespace SeedUI
             {
                 configuration.RootPath = "ClientApp/dist";
             });
+
+            services.AddSignalR()
+            .AddJsonProtocol(option =>
+            {
+                option.PayloadSerializerSettings.Converters.Add(new IPAddressConverter());
+                option.PayloadSerializerSettings.Converters.Add(new IPEndPointConverter());
+                option.PayloadSerializerSettings.Converters.Add(new MemberStateConverter());
+                option.PayloadSerializerSettings.Converters.Add(new DateTimeConverter());
+            });
+
+            services.AddSingleton<IMemberGraphStore, MemberGraphStore>();
+            services.AddSingleton<IMemberEventsStore, MemberEventsStore>();
+            services.AddSingleton<IMemberListener, MemberListener>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -68,6 +84,11 @@ namespace SeedUI
                 {
                     spa.UseAngularCliServer(npmScript: "start");
                 }
+            });
+
+            app.UseSignalR(routes =>
+            {
+                routes.MapHub<MembersHub>("/membersHub");
             });
 
             var listenPort = ushort.Parse(Configuration["port"]);
