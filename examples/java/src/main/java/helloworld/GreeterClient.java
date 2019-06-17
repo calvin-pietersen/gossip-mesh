@@ -1,6 +1,6 @@
 package helloworld;
 
-import com.rokt.gossip.Gossiper;
+import com.gossipmesh.gossip.Gossiper;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 

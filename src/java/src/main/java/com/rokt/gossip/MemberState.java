@@ -1,4 +1,4 @@
-package com.rokt.gossip;
+package com.gossipmesh.gossip;
 
 public enum MemberState {
     ALIVE,

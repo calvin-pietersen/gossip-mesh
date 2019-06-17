@@ -1,4 +1,4 @@
-package com.rokt.gossip;
+package com.gossipmesh.gossip;
 
 import java.net.Inet4Address;
 import java.util.Objects;

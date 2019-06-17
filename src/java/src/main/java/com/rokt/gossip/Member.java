@@ -1,4 +1,4 @@
-package com.rokt.gossip;
+package com.gossipmesh.gossip;
 
 import java.util.Objects;
 

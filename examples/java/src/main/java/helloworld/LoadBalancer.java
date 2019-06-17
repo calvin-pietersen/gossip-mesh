@@ -1,15 +1,15 @@
 package helloworld;
 
-import com.rokt.gossip.Listener;
-import com.rokt.gossip.MemberAddress;
-import com.rokt.gossip.Member;
+import com.gossipmesh.gossip.Listener;
+import com.gossipmesh.gossip.MemberAddress;
+import com.gossipmesh.gossip.Member;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.rokt.gossip.MemberState.*;
+import static com.gossipmesh.gossip.MemberState.*;
 
 @SuppressWarnings("unchecked")
 class LoadBalancer implements Listener {
