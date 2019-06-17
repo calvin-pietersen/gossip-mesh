@@ -259,7 +259,7 @@ public class Gossiper {
     }
 
     private void indirectPing(MemberAddress address, Member member) throws IOException {
-        updateMember(null, address, m -> m == null ? null : m.merge(member.withHealth(MemberState.SUSPICIOUS)));
+        updateMember(null, address, m -> m == null ? null : m.merge(member.withState(MemberState.SUSPICIOUS)));
         int i = options.getNumberOfIndirectEndPoints();
         for (MemberAddress relay : randomNodes((a, m) -> !Objects.equals(a, address))) {
             if (--i < 0) {
@@ -271,7 +271,7 @@ public class Gossiper {
             });
         }
         scheduleTask(address, () -> {
-            Member dead = updateMember(null, address, m -> m == null ? null : m.merge(member.withHealth(MemberState.DEAD)));
+            Member dead = updateMember(null, address, m -> m == null ? null : m.merge(member.withState(MemberState.DEAD)));
             scheduleTask(address, () -> {
                 // only prune the state if it hasn't changed
                 updateMember(null, address, m -> Objects.equals(m, dead) ? null : m);

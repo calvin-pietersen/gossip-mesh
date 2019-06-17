@@ -27,7 +27,7 @@ public class Member {
         }
     }
 
-    Member withHealth(MemberState state) {
+    Member withState(MemberState state) {
         return new Member(state, this.generation, this.serviceByte, this.servicePort);
     }
 
