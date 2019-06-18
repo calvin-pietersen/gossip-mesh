@@ -1,6 +1,7 @@
 package helloworld;
 
-import com.gossipmesh.gossip.Gossiper;
+import com.gossipmesh.core.Gossiper;
+import com.gossipmesh.core.GossiperOptions;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -25,7 +26,8 @@ public class GreeterServer extends GreeterGrpc.GreeterImplBase {
                 .build();
         server.start();
 
-        Gossiper gossiper = new Gossiper(0x02, serverPort);
+        GossiperOptions options = new GossiperOptions();
+        Gossiper gossiper = new Gossiper(0x02, serverPort, options);
         int gossipPort = gossiper.start();
         System.out.println(gossipPort);
         for (int i = 1; i < args.length; ++i) {

@@ -1,15 +1,15 @@
 package helloworld;
 
-import com.gossipmesh.gossip.Listener;
-import com.gossipmesh.gossip.MemberAddress;
-import com.gossipmesh.gossip.Member;
+import com.gossipmesh.core.Listener;
+import com.gossipmesh.core.MemberAddress;
+import com.gossipmesh.core.Member;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.gossipmesh.gossip.MemberState.*;
+import static com.gossipmesh.core.MemberState.*;
 
 @SuppressWarnings("unchecked")
 class LoadBalancer implements Listener {
@@ -48,34 +48,34 @@ class LoadBalancer implements Listener {
         }
     }
 
-    private static boolean isAlive(Member state) {
-        return state != null && (state.health == ALIVE || state.health == SUSPICIOUS);
+    private static boolean isAlive(Member member) {
+        return member != null && (member.state == ALIVE || member.state == SUSPICIOUS);
     }
 
-    private static boolean isDead(Member state) {
-        return state == null || state.health == DEAD || state.health == LEFT;
+    private static boolean isDead(Member member) {
+        return member == null || member.state == DEAD || member.state == LEFT;
     }
 
     @Override
-    public void accept(MemberAddress from, MemberAddress address, Member state, Member oldState) {
-        boolean serviceUpdated = (state != null && oldState != null)
-                && (state.serviceByte != oldState.serviceByte)
-                && (state.servicePort != oldState.servicePort);
-        if (isAlive(oldState) && (isDead(state) || serviceUpdated)) {
-            services.computeIfPresent(oldState.serviceByte, (b, nodes) -> {
+    public void accept(MemberAddress from, MemberAddress address, Member member, Member oldMember) {
+        boolean serviceUpdated = (member != null && oldMember != null)
+                && (member.serviceByte != oldMember.serviceByte)
+                && (member.servicePort != oldMember.servicePort);
+        if (isAlive(oldMember) && (isDead(member) || serviceUpdated)) {
+            services.computeIfPresent(oldMember.serviceByte, (b, nodes) -> {
                 Object service = nodes.remove(address);
                 if (service != null) {
-                    ServiceFactory<Object> factory = (ServiceFactory<Object>) serviceFactories.get(oldState.serviceByte);
+                    ServiceFactory<Object> factory = (ServiceFactory<Object>) serviceFactories.get(oldMember.serviceByte);
                     factory.destroy(service);
                 }
                 return nodes.isEmpty() ? null : nodes;
             });
         }
-        if ((isDead(oldState) && isAlive(state)) || serviceUpdated) {
-            ServiceFactory<Object> factory = (ServiceFactory<Object>) serviceFactories.get(state.serviceByte);
+        if ((isDead(oldMember) && isAlive(member)) || serviceUpdated) {
+            ServiceFactory<Object> factory = (ServiceFactory<Object>) serviceFactories.get(member.serviceByte);
             if (factory != null) { // we can't build a client if we don't have the service byte registered!
-                services.computeIfAbsent(state.serviceByte, ConcurrentHashMap::new)
-                        .put(address, factory.create(address.address, state.servicePort));
+                services.computeIfAbsent(member.serviceByte, ConcurrentHashMap::new)
+                        .put(address, factory.create(address.address, member.servicePort));
             }
         }
     }

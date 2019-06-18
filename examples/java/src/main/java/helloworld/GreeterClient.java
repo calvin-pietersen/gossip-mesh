@@ -1,6 +1,7 @@
 package helloworld;
 
-import com.gossipmesh.gossip.Gossiper;
+import com.gossipmesh.core.Gossiper;
+import com.gossipmesh.core.GossiperOptions;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 
@@ -51,7 +52,8 @@ public class GreeterClient {
         LoadBalancer.Service<GreeterClient> greeterService =
                 loadBalancer.registerService(0x02, GreeterClient.factory);
 
-        Gossiper gossiper = new Gossiper(0, 0);
+        GossiperOptions options = new GossiperOptions();
+        Gossiper gossiper = new Gossiper(0, 0, options);
         gossiper.addListener("load-balancer", loadBalancer);
         int gossipPort = gossiper.start();
         System.out.println(gossipPort);

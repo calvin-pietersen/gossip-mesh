@@ -1,4 +1,4 @@
-package com.gossipmesh.gossip;
+package com.gossipmesh.core;
 
 import java.io.IOException;
 import java.io.OutputStream;

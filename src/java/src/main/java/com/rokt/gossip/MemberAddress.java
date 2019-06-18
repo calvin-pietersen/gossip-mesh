@@ -1,4 +1,4 @@
-package com.gossipmesh.gossip;
+package com.gossipmesh.core;
 
 import java.net.Inet4Address;
 import java.util.Objects;

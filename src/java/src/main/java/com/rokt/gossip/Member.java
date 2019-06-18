@@ -1,4 +1,4 @@
-package com.gossipmesh.gossip;
+package com.gossipmesh.core;
 
 import java.util.Objects;
 
