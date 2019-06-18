@@ -1,6 +1,6 @@
-# Running the C# examples
+# Running the C# gRPC Greeter examples
 
-To run the client or the server run the following in either `examples/csharp/Greeter/GreeterClient` or `examples/csharp/Greeter/GreeterServer`.
+To run the client or the server run the following in either `examples/csharp/Grpc/Greeter/GreeterClient` or `examples/csharp/Grpc/Greeter/GreeterServer`.
 
     dotnet run <listen-port>
 
