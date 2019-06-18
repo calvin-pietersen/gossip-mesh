@@ -1,4 +1,4 @@
-package com.rokt.gossip;
+package com.gossipmesh.core;
 
 import java.io.IOException;
 import java.io.OutputStream;

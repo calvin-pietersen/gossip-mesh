@@ -1,5 +1,5 @@
-package com.rokt.gossip;
+package com.gossipmesh.core;
 
 public interface Listener {
-    void accept(NodeAddress from, NodeAddress address, NodeState newState, NodeState oldState);
+    void accept(MemberAddress from, MemberAddress address, Member newMember, Member oldMember);
 }

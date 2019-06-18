@@ -1,13 +1,13 @@
-package com.rokt.gossip;
+package com.gossipmesh.core;
 
 import java.net.Inet4Address;
 import java.util.Objects;
 
-public class NodeAddress {
+public class MemberAddress {
     public final Inet4Address address;
     public final short port;
 
-    public NodeAddress(Inet4Address address, short port) {
+    public MemberAddress(Inet4Address address, short port) {
         this.address = address;
         this.port = port;
     }
@@ -16,7 +16,7 @@ public class NodeAddress {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        NodeAddress that = (NodeAddress) o;
+        MemberAddress that = (MemberAddress) o;
         return port == that.port &&
                 address.equals(that.address);
     }

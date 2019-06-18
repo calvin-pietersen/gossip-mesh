@@ -1,6 +1,5 @@
-package com.rokt.gossip;
+package com.gossipmesh.core;
 
-import java.io.DataOutputStream;
 import java.io.IOException;
 
 interface MessageWriter<T> {
