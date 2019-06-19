@@ -31,17 +31,24 @@ namespace ZeroMQClient
             var stopwatch = new Stopwatch();
             while(true)
             {
-                Console.Write("Please enter your name: ");
-                var name = Console.ReadLine();
-                stopwatch.Restart();
+                try
+                {
+                    Console.Write("Please enter your name: ");
+                    var name = Console.ReadLine();
+                    stopwatch.Restart();
+                    var serviceClient = loadbalancer.GetServiceClient<ZeroMQServiceClient>(6);
 
-                var serviceClient = loadbalancer.GetServiceClient<ZeroMQServiceClient>(6);
+                    serviceClient.Client.SendFrame(name);
+                    var response = serviceClient.Client.ReceiveFrameString();
+                    
+                    stopwatch.Stop();
+                    Console.WriteLine($"Response: {response} From: {serviceClient.ServiceEndPoint} TimeTaken: {stopwatch.Elapsed.TotalMilliseconds}ms");
+                }
 
-                serviceClient.Client.SendFrame(name);
-                var response = serviceClient.Client.ReceiveFrameString();
-                
-                stopwatch.Stop();
-                Console.WriteLine($"Response: {response} From: {serviceClient.ServiceEndPoint} TimeTaken: {stopwatch.Elapsed.TotalMilliseconds}ms");
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
             }
         }
 
