@@ -36,44 +36,52 @@ namespace AeronClient
             var stopwatch = new Stopwatch();
             while(true)
             {
-                Console.Write("Please enter your name: ");
-                string message = Console.ReadLine();
-
-                stopwatch.Restart();
-                var messageBytes = Encoding.UTF8.GetBytes(message);
-                buffer.PutBytes(0, messageBytes);
-
-                var client = loadbalancer.GetServiceClient<AeronServiceClient>(4);
-
-                // Try to publish the buffer. 'offer' is a non-blocking call.
-                // If it returns less than 0, the message was not sent, and the offer should be retried.
-                var result = client.Publication.Offer(buffer, 0, messageBytes.Length);
-
-                if (result < 0L)
+                try
                 {
-                    switch (result)
+                    Console.Write("Please enter your name: ");
+                    string message = Console.ReadLine();
+
+                    stopwatch.Restart();
+                    var messageBytes = Encoding.UTF8.GetBytes(message);
+                    buffer.PutBytes(0, messageBytes);
+
+                    var client = loadbalancer.GetServiceClient<AeronServiceClient>(4);
+
+                    // Try to publish the buffer. 'offer' is a non-blocking call.
+                    // If it returns less than 0, the message was not sent, and the offer should be retried.
+                    var result = client.Publication.Offer(buffer, 0, messageBytes.Length);
+
+                    if (result < 0L)
                     {
-                        case Publication.BACK_PRESSURED:
-                            Console.WriteLine(" Offer failed due to back pressure");
-                            break;
-                        case Publication.NOT_CONNECTED:
-                            Console.WriteLine(" Offer failed because publisher is not connected to subscriber");
-                            break;
-                        case Publication.ADMIN_ACTION:
-                            Console.WriteLine("Offer failed because of an administration action in the system");
-                            break;
-                        case Publication.CLOSED:
-                            Console.WriteLine("Offer failed publication is closed");
-                            break;
-                        default:
-                            Console.WriteLine(" Offer failed due to unknown reason");
-                            break;
+                        switch (result)
+                        {
+                            case Publication.BACK_PRESSURED:
+                                Console.WriteLine(" Offer failed due to back pressure");
+                                break;
+                            case Publication.NOT_CONNECTED:
+                                Console.WriteLine(" Offer failed because publisher is not connected to subscriber");
+                                break;
+                            case Publication.ADMIN_ACTION:
+                                Console.WriteLine("Offer failed because of an administration action in the system");
+                                break;
+                            case Publication.CLOSED:
+                                Console.WriteLine("Offer failed publication is closed");
+                                break;
+                            default:
+                                Console.WriteLine(" Offer failed due to unknown reason");
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        stopwatch.Stop();
+                        Console.WriteLine($"Message Sent TimeTaken: {stopwatch.Elapsed.TotalMilliseconds}ms");
                     }
                 }
-                else
+
+                catch (Exception ex)
                 {
-                    stopwatch.Stop();
-                    Console.WriteLine($"Message Sent TimeTaken: {stopwatch.Elapsed.TotalMilliseconds}ms");
+                    Console.WriteLine(ex.Message);
                 }
             }
         }
