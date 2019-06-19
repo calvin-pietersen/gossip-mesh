@@ -159,6 +159,12 @@ namespace GossipMesh.Core
                         }
                     }
                 }
+
+                catch (SocketException socEx)
+                {
+                    _udpClient = CreateUdpClient(_self.GossipEndPoint);
+                }
+
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}", ex.Message, ex.StackTrace);
