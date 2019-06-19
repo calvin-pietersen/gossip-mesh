@@ -266,7 +266,7 @@ public class Gossiper {
                 break;
             }
             sendMessage(relay, dos -> {
-                dos.write(0x03);
+                dos.write(0x05);
                 writeAddress(dos, address);
             });
         }
