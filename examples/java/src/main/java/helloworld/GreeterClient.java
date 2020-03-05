@@ -30,7 +30,7 @@ public class GreeterClient {
         return channel.authority();
     }
 
-    static ServiceFactory<GreeterClient> factory = new ServiceFactory<GreeterClient>() {
+    static final ServiceFactory<GreeterClient> factory = new ServiceFactory<GreeterClient>() {
         @Override
         public GreeterClient create(Inet4Address ip, short port) {
             ManagedChannel channel = ManagedChannelBuilder
@@ -57,14 +57,17 @@ public class GreeterClient {
         gossiper.addListener("load-balancer", loadBalancer);
         int gossipPort = gossiper.start();
         System.out.println(gossipPort);
-        for (int i = 0; i < args.length; ++i) {
-            String[] details = args[i].split(":");
-            if (details.length == 1) {
+
+
+        for (String arg : args) {
+            String[] details = arg.split(":");
+            if (details.length == 1)
                 details = new String[]{"127.0.0.1", details[0]};
-            }
+
             gossiper.connectTo(
                     (Inet4Address) Inet4Address.getByName(details[0]),
                     Integer.parseInt(details[1]));
+
         }
 
         try (Reader reader = new InputStreamReader(System.in);
