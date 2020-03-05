@@ -18,13 +18,8 @@ public class Member {
     }
 
     Member merge(Member other) {
-        if (isLaterGeneration(other.generation, this.generation)) {
-            return other;
-        } else if (other.state.ordinal() > this.state.ordinal()) {
-            return other;
-        } else {
-            return this;
-        }
+        return isLaterGeneration(other.generation, this.generation) || other.state.ordinal() > this.state.ordinal() ?
+                other : this;
     }
 
     Member withState(MemberState state) {
@@ -33,8 +28,8 @@ public class Member {
 
     // is `gen1` later than `gen2`?
     static boolean isLaterGeneration(byte gen1, byte gen2) {
-        return ((0 < gen1 - gen2) && (gen1 - gen2 < 191)
-                || (gen1 - gen2 <= -191));
+        int d = gen1 - gen2;
+        return ((0 < d) && (d < 191) || (d <= -191));
     }
 
     @Override

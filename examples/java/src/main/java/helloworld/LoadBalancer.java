@@ -30,7 +30,7 @@ class LoadBalancer implements Listener {
     }
 
     public class Service<T> {
-        private byte serviceByte;
+        private final byte serviceByte;
 
         private Service(byte serviceByte) {
             this.serviceByte = serviceByte;
@@ -42,8 +42,7 @@ class LoadBalancer implements Listener {
                 throw new RuntimeException("No services available to handle request");
             } else {
                 Object[] arr = nodes.values().toArray(new Object[0]);
-                int index = LoadBalancer.this.random.nextInt(arr.length);
-                return (T) arr[index];
+                return (T) arr[LoadBalancer.this.random.nextInt(arr.length)];
             }
         }
     }
@@ -57,13 +56,13 @@ class LoadBalancer implements Listener {
     }
 
     @Override
-    public void accept(MemberAddress from, MemberAddress address, Member member, Member oldMember) {
+    public void accept(MemberAddress from, MemberAddress to, Member member, Member oldMember) {
         boolean serviceUpdated = (member != null && oldMember != null)
                 && (member.serviceByte != oldMember.serviceByte)
                 && (member.servicePort != oldMember.servicePort);
         if (isAlive(oldMember) && (isDead(member) || serviceUpdated)) {
             services.computeIfPresent(oldMember.serviceByte, (b, nodes) -> {
-                Object service = nodes.remove(address);
+                Object service = nodes.remove(to);
                 if (service != null) {
                     ServiceFactory<Object> factory = (ServiceFactory<Object>) serviceFactories.get(oldMember.serviceByte);
                     factory.destroy(service);
@@ -75,7 +74,7 @@ class LoadBalancer implements Listener {
             ServiceFactory<Object> factory = (ServiceFactory<Object>) serviceFactories.get(member.serviceByte);
             if (factory != null) { // we can't build a client if we don't have the service byte registered!
                 services.computeIfAbsent(member.serviceByte, ConcurrentHashMap::new)
-                        .put(address, factory.create(address.address, member.servicePort));
+                        .put(to, factory.create(to.address, member.servicePort));
             }
         }
     }

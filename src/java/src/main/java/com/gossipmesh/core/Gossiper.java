@@ -3,10 +3,7 @@ package com.gossipmesh.core;
 import java.io.*;
 import java.net.*;
 import java.util.*;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -21,7 +18,7 @@ public class Gossiper {
     private final GossiperOptions options;
     private final ScheduledExecutorService executor;
     private final DatagramSocket socket;
-    private final HashMap<Object, Listener> listeners;
+    private final Map<Object, Listener> listeners;
     private Thread listener;
     private byte generation;
 
@@ -34,14 +31,14 @@ public class Gossiper {
     }
 
     public Gossiper(DatagramSocket socket, int serviceByte, int servicePort, GossiperOptions options) {
-        this.members = new HashMap<>();
-        this.waiting = new HashMap<>();
+        this.members = new ConcurrentHashMap<>();
+        this.waiting = new ConcurrentHashMap<>();
         this.serviceByte = (byte) serviceByte;
         this.servicePort = (short) servicePort;
         this.options = options;
         this.executor = new ScheduledThreadPoolExecutor(1);
         this.socket = socket;
-        this.listeners = new HashMap<>();
+        this.listeners = new ConcurrentHashMap<>();
     }
 
     private Runnable loggingExceptions(Runnable f) {
@@ -110,7 +107,7 @@ public class Gossiper {
                 .iterator();
     }
 
-    private class RandomComparator<T> implements Comparator<T> {
+    private static class RandomComparator<T> implements Comparator<T> {
         private final Map<T, Integer> map = new IdentityHashMap<>();
         private final Random random;
 
@@ -128,9 +125,7 @@ public class Gossiper {
         }
 
         int valueOf(T obj) {
-            synchronized (map) {
-                return map.computeIfAbsent(obj, k -> random.nextInt());
-            }
+            return map.computeIfAbsent(obj, k -> random.nextInt());
         }
     }
 
@@ -181,19 +176,19 @@ public class Gossiper {
             future[0] = this.executor.schedule(loggingExceptions(() -> {
                 this.waiting.remove(address, future[0]);
                 command.run();
-            }), delay, TimeUnit.MILLISECONDS);
+            }), delay, units);
             return future[0];
         });
     }
 
-    private void sendMessage(MemberAddress address, MessageWriter<DataOutput> header) throws IOException {
-        byte[] outBuffer = new byte[508];
+    private void sendMessage(MemberAddress address, MessageConsumer<DataOutput> header) throws IOException {
+
         int limit = 0;
-        Set<MemberAddress> sending = new HashSet<>();
-        try (FiniteByteArrayOutputStream os = new FiniteByteArrayOutputStream(outBuffer);
-             DataOutputStream dos = new DataOutputStream(os)) {
+        Set<MemberAddress> recipient = null;
+        DirectByteArrayOutputStream os = new DirectByteArrayOutputStream();
+        try (DataOutputStream dos = new DataOutputStream(os)) {
             dos.write(0); // protocol version
-            header.writeTo(dos);
+            header.accept(dos);
 
             dos.write(this.generation);
             dos.write(this.serviceByte);
@@ -208,29 +203,32 @@ public class Gossiper {
                 dos.write(receiver.generation);
             }
 
-            limit = os.position();
+            limit = os.size();
 
             PriorityQueue<Map.Entry<MemberAddress, Member>> queue = new PriorityQueue<>(Comparator.comparingLong(a -> a.getValue().timesMentioned));
             queue.addAll(this.members.entrySet());
             for (Map.Entry<MemberAddress, Member> entry : queue) {
-                if (Objects.equals(entry.getKey(), address)) {
+                if (Objects.equals(entry.getKey(), address))
                     continue;
-                }
+
                 writeEvent(dos, entry.getKey(), entry.getValue()); // this will eventually throw an exception
-                limit = os.position();
-                sending.add(entry.getKey());
+                limit = os.size();
+                if (recipient == null)
+                    recipient = new HashSet<>(1);
+                recipient.add(entry.getKey());
             }
         } catch (IOException ex) {
             // ignore this, we don't actually care
         }
 
-        DatagramPacket packet = new DatagramPacket(outBuffer, limit);
-        packet.setAddress(address.address);
-        packet.setPort(address.port & 0xFFFF);
-        socket.send(packet);
+        if (recipient!=null) {
 
-        for (MemberAddress sent : sending) {
-            this.members.get(sent).timesMentioned++;
+            DatagramPacket packet = new DatagramPacket(os.array(), limit);
+            packet.setAddress(address.address);
+            packet.setPort(address.port & 0xFFFF);
+            socket.send(packet);
+            for (MemberAddress sent : recipient)
+                members.get(sent).timesMentioned++;
         }
     }
 
@@ -311,7 +309,7 @@ public class Gossiper {
         }
     }
 
-    private void handleDirectAck(MemberAddress address, DataInput input) throws IOException {
+    private void handleDirectAck(MemberAddress address, DataInput input) {
         removeAndCancel(address); // if we were waiting to hear from them - here they are!
         handleEvents(address, input);
     }
@@ -416,9 +414,8 @@ public class Gossiper {
     }
 
     private void notifyListeners(MemberAddress from, MemberAddress address, Member newState, Member oldState) {
-        for (Listener listener : listeners.values()) {
+        for (Listener listener : listeners.values())
             listener.accept(from, address, newState, oldState);
-        }
     }
 
     public void addListener(Object key, Listener listener) {
@@ -427,5 +424,13 @@ public class Gossiper {
 
     public void removeListener(Object key) {
         this.executor.execute(loggingExceptions(() -> this.listeners.remove(key)));
+    }
+
+    private static class DirectByteArrayOutputStream extends ByteArrayOutputStream {
+        public DirectByteArrayOutputStream() {
+            super(508);
+        }
+
+        public byte[] array() { return buf; }
     }
 }
